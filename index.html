@@ -2,456 +2,1410 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>トレーシングアプリ</title>
-<link rel="icon" type="image/png" href="favicon.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>刺繍糸管理&カラーマッチ</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
-  :root{
-    --bg:#eaf4fc;
-    --panel:#dbecfa;
-    --panel-line:#b9d7ee;
-    --accent:#7fb4e3;
-    --accent-locked:#f0a8b6;
-    --text:#20303f;
-    --text-dim:#5f7488;
-    --mono: 'SF Mono', 'Courier New', monospace;
-  }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{
-    margin:0; padding:0; width:100%; height:100%;
-    background:var(--bg);
-    overflow:hidden;
-    font-family:-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Helvetica Neue", sans-serif;
-    color:var(--text);
-    touch-action:none;
-    overscroll-behavior:none;
-  }
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600&family=Noto+Sans+JP:wght@300;400;500&display=swap');
+:root{
+  --linen:#F5EFE6; --warm:#FDFAF6; --brown:#5C3D2E;
+  --rose:#C4866A; --ink:#2C1F14; --muted:#9B8B7E; --border:#E2D5C8;
+  --sage:#5C7A6B; --warn:#C0532A; --warn-bg:#F3DCC9;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--linen);color:var(--ink);font-family:'Noto Sans JP',sans-serif;font-weight:300;min-height:100vh;}
 
-  /* ---------- STAGE (light-box surface) ---------- */
-  #stage{
-    position:fixed; inset:0;
-    background:#f6fafd;
-    display:flex; align-items:center; justify-content:center;
-    overflow:hidden;
-  }
-  #imgWrap{
-    position:absolute;
-    left:50%; top:50%;
-    will-change:transform;
-    touch-action:none;
-  }
-  #img{
-    display:none;
-    max-width:none;
-    pointer-events:none;
-    user-select:none;
-    -webkit-user-drag:none;
-  }
-  #emptyState{
-    text-align:center;
-    color:#7c93a8;
-    pointer-events:none;
-  }
-  #emptyState .mark{
-    font-family:var(--mono);
-    font-size:11px;
-    letter-spacing:.14em;
-    text-transform:uppercase;
-    color:#6d879e;
-    margin-bottom:10px;
-  }
-  #emptyState .msg{ font-size:15px; color:#89a0b5; }
+/* ── ヘッダー ── */
+header{background:var(--brown);padding:1.4rem 1rem 1.1rem;text-align:center;}
+header h1{font-family:'Noto Serif JP',serif;font-size:1.35rem;color:var(--linen);letter-spacing:.1em;font-weight:600;}
+header p{color:var(--rose);font-size:.9rem;letter-spacing:.06em;margin-top:.3rem;}
 
-  /* ---------- STARTUP NOTICE ---------- */
-  #startupNotice{
-    position:fixed; inset:0;
-    z-index:80;
-    background:rgba(16,28,40,.55);
-    display:flex; align-items:center; justify-content:center;
-    padding:24px;
-  }
-  #startupNotice.hidden{ display:none; }
-  #startupCard{
-    width:100%; max-width:420px;
-    background:var(--panel);
-    border:1px solid var(--panel-line);
-    border-radius:16px;
-    padding:26px 24px;
-  }
-  #startupMark{
-    font-family:var(--mono);
-    font-size:11px;
-    letter-spacing:.14em;
-    text-transform:uppercase;
-    color:var(--text-dim);
-    margin-bottom:12px;
-  }
-  #startupText{
-    margin:0 0 20px;
-    font-size:14px;
-    line-height:1.8;
-    color:var(--text);
-  }
-  #startupClose{
-    width:100%;
-    padding:13px;
-    border-radius:10px;
-    border:none;
-    background:var(--accent);
-    color:#12324c;
-    font-size:14px;
-    font-weight:600;
-    cursor:pointer;
-  }
+/* ── タブナビ ── */
+.app-tabs{display:flex;gap:.4rem;background:var(--warm);border-top:1px solid var(--border);padding:.6rem .6rem;}
+.app-tab{flex:1;padding:1rem .7rem;font-size:.85rem;font-family:'Noto Sans JP',sans-serif;font-weight:500;color:var(--muted);background:none;border:none;border-radius:999px;cursor:pointer;letter-spacing:.05em;transition:.15s;}
+.app-tab:hover{color:var(--ink);}
+.app-tab.active{color:#fff;background:var(--brown);box-shadow:0 2px 6px rgba(44,31,20,.18);}
 
-  /* ---------- LOCK OVERLAY ---------- */
-  #lockCatcher{
-    position:fixed; inset:0;
-    z-index:40;
-    display:none;
-    touch-action:none;
-  }
-  body.locked #lockCatcher{ display:block; }
+/* ── ページ ── */
+.page{display:none;}.page.active{display:block;}
 
-  /* ---------- PIN BUTTON ---------- */
-  #pinBtn{
-    position:fixed;
-    top:calc(16px + env(safe-area-inset-top));
-    right:calc(16px + env(safe-area-inset-right));
-    z-index:50;
-    width:56px; height:56px;
-    border-radius:50%;
-    border:2px solid var(--panel-line);
-    background:var(--accent);
-    display:flex; align-items:center; justify-content:center;
-    cursor:pointer;
-    transition:background .12s ease, transform .12s ease;
-  }
-  #pinBtn:active{ transform:scale(.92); }
-  #pinBtn svg{ width:24px; height:24px; }
-  body.locked #pinBtn{
-    background:var(--accent-locked);
-    border-color:#e0879a;
-  }
-  #pinLabel{
-    position:fixed;
-    top:calc(76px + env(safe-area-inset-top));
-    right:calc(16px + env(safe-area-inset-right));
-    z-index:50;
-    font-family:var(--mono);
-    font-size:10px;
-    letter-spacing:.1em;
-    color:var(--text-dim);
-    text-transform:uppercase;
-    pointer-events:none;
-  }
+/* ══════════════════════════════════
+   カラーマッチャー
+══════════════════════════════════ */
+.matcher-main{
+  display:grid;grid-template-columns:1fr;gap:1.2rem;
+  max-width:1200px;margin:0 auto;padding:1.4rem 1rem 3rem;
+}
+@media(min-width:768px){
+  .matcher-main{grid-template-columns:1fr 1fr;align-items:start;padding:1.8rem 1.5rem 3rem;}
+}
+.left-col{display:flex;flex-direction:column;gap:1rem;}
+.right-col{display:flex;flex-direction:column;gap:1rem;}
 
-  /* ---------- CONTROL PANEL ---------- */
-  #panel{
-    position:fixed;
-    left:0; right:0; bottom:0;
-    z-index:45;
-    background:var(--panel);
-    border-top:1px solid var(--panel-line);
-    padding:22px 20px calc(18px + env(safe-area-inset-bottom));
-    transform:translateY(0);
-    transition:transform .28s cubic-bezier(.4,0,.2,1), opacity .28s ease;
-  }
-  body.locked #panel{
-    transform:translateY(120%);
-    opacity:0;
-    pointer-events:none;
-  }
-  #panelInner{
-    max-width:520px; margin:0 auto;
-    display:flex; flex-direction:column; gap:16px;
-  }
-  .row{ display:flex; align-items:center; gap:14px; }
-  .row-label{
-    font-family:var(--mono);
-    font-size:10px;
-    letter-spacing:.12em;
-    text-transform:uppercase;
-    color:var(--text-dim);
-    width:52px;
-    flex-shrink:0;
-  }
-  .row-value{
-    font-family:var(--mono);
-    font-size:11px;
-    color:var(--text-dim);
-    width:38px;
-    text-align:right;
-    flex-shrink:0;
-  }
-  input[type=range]{
-    -webkit-appearance:none;
-    appearance:none;
-    flex:1;
-    height:2px;
-    background:var(--panel-line);
-    border-radius:2px;
-    outline:none;
-  }
-  input[type=range]::-webkit-slider-thumb{
-    -webkit-appearance:none;
-    width:20px; height:20px;
-    border-radius:50%;
-    background:var(--accent);
-    border:2px solid var(--panel-line);
-    margin-top:0;
-  }
+/* upload */
+.upload-zone{border:2px dashed var(--border);border-radius:4px;background:var(--warm);padding:2rem 1rem;text-align:center;cursor:pointer;transition:.2s;position:relative;}
+.upload-zone:hover,.upload-zone.drag-over{border-color:var(--rose);background:#FDF6F0;}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.upload-icon{font-size:2.4rem;margin-bottom:.5rem;display:block;}
+.upload-zone h2{font-size:1.1rem;font-weight:500;color:var(--brown);font-family:'Noto Serif JP',serif;margin-bottom:.25rem;}
+.upload-zone p{font-size:.9rem;color:var(--muted);}
 
-  #pickBtn{
-    display:flex; align-items:center; justify-content:center; gap:8px;
-    width:100%;
-    padding:13px;
-    border-radius:10px;
-    border:1px solid var(--panel-line);
-    background:var(--panel);
-    color:var(--text);
-    font-size:14px;
-    font-weight:500;
-    cursor:pointer;
-  }
-  #pickBtn svg{ width:16px; height:16px; opacity:.8; }
-  #fileInput{ display:none; }
+/* preview */
+#preview-section{display:none;}
+.toolbar{display:flex;align-items:center;gap:.4rem;margin-bottom:.5rem;flex-wrap:wrap;}
+.tb-btn{border:1px solid var(--border);background:var(--warm);border-radius:3px;padding:.4rem .85rem;font-size:.85rem;font-family:'Noto Sans JP',sans-serif;cursor:pointer;color:var(--muted);transition:.15s;white-space:nowrap;}
+.tb-btn:hover{border-color:var(--rose);color:var(--rose);}
+.tb-btn.active{background:var(--brown);border-color:var(--brown);color:var(--linen);}
+.tb-sep{flex:1;}
+.zoom-label{font-size:.82rem;color:var(--muted);min-width:3rem;text-align:right;}
+.zb{border:1px solid var(--border);background:var(--warm);border-radius:3px;width:30px;height:30px;font-size:1rem;cursor:pointer;color:var(--brown);display:flex;align-items:center;justify-content:center;padding:0;}
+.zb:hover{border-color:var(--rose);}
+.viewport{width:100%;height:360px;border:1px solid var(--border);border-radius:4px;background:#1a1210;overflow:hidden;position:relative;user-select:none;-webkit-user-select:none;touch-action:none;}
+#view-canvas{position:absolute;top:0;left:0;}
+#sel-overlay{position:absolute;top:0;left:0;pointer-events:none;}
+.hint-bar{font-size:.82rem;color:var(--muted);margin-top:.35rem;text-align:center;min-height:1em;}
+.hint-bar b{color:var(--rose);font-weight:500;}
+.btn-clear-sel{display:none;background:none;border:1px solid var(--border);border-radius:3px;padding:.32rem .85rem;font-size:.82rem;color:var(--muted);cursor:pointer;margin-top:.3rem;font-family:'Noto Sans JP',sans-serif;}
+.btn-clear-sel:hover{border-color:var(--rose);color:var(--rose);}
+.count-row{margin-top:.9rem;}
+.count-label{font-size:.78rem;color:var(--muted);display:block;margin-bottom:.4rem;}
+.count-btns{display:flex;gap:.4rem;flex-wrap:wrap;}
+.count-btn{flex:1;min-width:42px;border:1px solid var(--border);background:var(--warm);border-radius:6px;padding:.5rem 0;font-size:.9rem;font-family:'Noto Sans JP',sans-serif;color:var(--ink);cursor:pointer;transition:.15s;}
+.count-btn:hover{border-color:var(--rose);color:var(--rose);}
+.count-btn.active{background:var(--brown);border-color:var(--brown);color:var(--linen);font-weight:500;}
+.btn-extract{background:var(--brown);color:var(--linen);border:none;border-radius:3px;padding:.75rem 1.4rem;font-family:'Noto Sans JP',sans-serif;font-size:1rem;font-weight:400;letter-spacing:.06em;cursor:pointer;transition:.2s;width:100%;margin-top:.7rem;}
+.btn-extract:hover{background:var(--rose);}
+.btn-extract:disabled{background:var(--muted);cursor:not-allowed;}
 
-  .actionsRow{
-    display:flex;
-    align-items:stretch;
-    gap:14px;
-  }
-  .actionsRow #pickBtn{ flex:1; }
-  #embroideryLink{
-    flex-shrink:0;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    gap:6px;
-    width:84px;
-    padding:8px 6px;
-    border-radius:10px;
-    border:1px solid var(--panel-line);
-    background:var(--panel);
-    text-decoration:none;
-    cursor:pointer;
-  }
-  #embroideryLink img{
-    width:44px; height:44px;
-    border-radius:8px;
-    object-fit:cover;
-    display:block;
-  }
-  #embroideryLink span{
-    font-size:9.5px;
-    line-height:1.3;
-    color:var(--text-dim);
-    text-align:center;
-    letter-spacing:.01em;
-  }
+/* 結果 */
+#results-section{display:none;}
+.section-title{font-family:'Noto Serif JP',serif;font-size:.95rem;color:var(--muted);letter-spacing:.1em;margin-bottom:.8rem;padding-bottom:.45rem;border-bottom:1px solid var(--border);}
+.brand-tabs{display:flex;gap:.4rem;margin-bottom:1rem;flex-wrap:wrap;}
+.brand-tab{border:1px solid var(--border);background:var(--warm);border-radius:3px;padding:.4rem 1rem;font-size:.88rem;font-family:'Noto Sans JP',sans-serif;cursor:pointer;color:var(--muted);transition:.15s;}
+.brand-tab:hover{border-color:var(--rose);color:var(--rose);}
+.brand-tab.active{background:var(--brown);border-color:var(--brown);color:var(--linen);}
+.brand-panel{display:none;}.brand-panel.active{display:block;}
+.color-list{display:flex;flex-direction:column;gap:.65rem;}
+.color-row{background:var(--warm);border:1px solid var(--border);border-radius:4px;display:flex;align-items:stretch;overflow:hidden;}
+.row-rank{width:32px;display:flex;align-items:center;justify-content:center;font-size:.8rem;color:var(--muted);font-weight:500;flex-shrink:0;border-right:1px solid var(--border);}
+.row-swatches{display:flex;flex-direction:column;width:64px;flex-shrink:0;}
+.swatch-h{flex:1;position:relative;}
+.swatch-label{position:absolute;bottom:2px;left:3px;font-size:.65rem;background:rgba(0,0,0,.3);color:#fff;padding:1px 4px;border-radius:2px;}
+.row-info{flex:1;padding:.6rem .85rem;min-width:0;}
+.thread-num{font-family:'Noto Serif JP',serif;font-size:1.2rem;font-weight:600;color:var(--brown);display:flex;align-items:center;gap:.4rem;}
+.thread-name{font-size:.85rem;color:var(--muted);margin-top:.08rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hex-pair{display:flex;gap:.35rem;margin-top:.4rem;font-size:.78rem;color:var(--muted);font-family:monospace;}
+.delta-badge{display:inline-block;font-size:.75rem;padding:2px 6px;border-radius:10px;margin-top:.3rem;font-weight:500;}
+.delta-great{background:#E8F5E8;color:#2E7D32;}
+.delta-good{background:#FFF8E1;color:#F57F17;}
+.delta-fair{background:#FDE8E8;color:#C62828;}
+.buy-link{display:inline-flex;align-items:center;gap:.25rem;font-size:.78rem;color:#fff;background:#BF0000;border-radius:10px;padding:2px 9px;margin-top:.35rem;margin-left:.35rem;text-decoration:none;font-weight:500;vertical-align:middle;transition:.15s;}
+.buy-link:hover{background:#900000;}
+.row-bar{width:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:.4rem .3rem;border-left:1px solid var(--border);flex-shrink:0;}
+.bar-track{width:8px;flex:1;background:var(--border);border-radius:4px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;max-height:60px;}
+.bar-fill{width:100%;background:var(--rose);border-radius:4px;transition:height .4s ease;}
+.bar-pct{font-size:.75rem;color:var(--muted);margin-top:.25rem;white-space:nowrap;}
+.crown-badge{font-size:.85rem;}
+.check-badge{font-size:1rem;color:#2E7D32;} /* ✅在庫あり */
+.color-row.best-brand{border-color:#D4A847;background:#FFFDF5;}
+.color-row.best-brand .thread-num{color:#A07800;}
+.color-row.in-stock{border-left:3px solid #2E7D32;}
 
-  #hint{
-    text-align:center;
-    font-size:11px;
-    color:var(--text-dim);
-    letter-spacing:.02em;
-  }
+/* loading */
+.loading{text-align:center;padding:1.8rem;color:var(--muted);font-size:.95rem;display:none;}
+.spinner{display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--rose);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:.4rem;}
+@keyframes spin{to{transform:rotate(360deg);}}
+#off-canvas{display:none;}
+
+/* ══════════════════════════════════
+   在庫管理
+══════════════════════════════════ */
+.inv-wrap{max-width:1100px;margin:0 auto;padding:1.4rem 1rem 3rem;}
+.inv-header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1rem;margin-bottom:1.4rem;}
+.inv-title-block{}
+
+/* ══════════════════════════════════
+   About Me
+══════════════════════════════════ */
+.about-wrap{max-width:480px;margin:0 auto;padding:2.4rem 1.2rem 3rem;}
+.about-card{background:#fff;border:1px solid var(--border);border-radius:16px;padding:2.4rem 1.6rem;text-align:center;}
+.about-icon{font-size:2.6rem;margin-bottom:.6rem;}
+.about-title{font-family:'Noto Serif JP',serif;font-size:1.5rem;font-weight:600;margin-bottom:.8rem;color:var(--ink);}
+.about-desc{font-size:.9rem;color:var(--muted);line-height:1.7;margin-bottom:2.6rem;}
+.about-links{display:flex;flex-direction:column;gap:.7rem;}
+.about-link{display:flex;align-items:center;gap:.7rem;padding:.85rem 1.1rem;border-radius:12px;background:var(--warm);border:1px solid var(--border);color:var(--ink);text-decoration:none;font-size:.9rem;font-weight:500;transition:.15s;}
+.about-link:hover{background:var(--brown);color:#fff;}
+.about-link-icon{font-size:1.15rem;width:1.6rem;text-align:center;}
+.inv-title{font-family:'Noto Serif JP',serif;font-size:2rem;font-weight:600;margin-top:.2rem;letter-spacing:-.01em;}
+.inv-stats{display:flex;gap:.4rem;}
+.inv-stat{background:var(--warm);border:1px solid var(--border);border-radius:8px;padding:.5rem .9rem;display:flex;align-items:baseline;gap:.35rem;}
+.inv-stat strong{font-family:'Noto Serif JP',serif;font-size:1.2rem;}
+.inv-stat span{font-size:.72rem;color:var(--muted);}
+.inv-stat-warn{border-color:var(--warn);background:var(--warn-bg);}
+.inv-stat-warn strong,.inv-stat-warn span{color:var(--warn);}
+
+.inv-toolbar{display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1.2rem;align-items:stretch;}
+.inv-search{flex:1 1 200px;display:flex;align-items:center;gap:.5rem;background:var(--warm);border:1px solid var(--border);border-radius:8px;padding:0 .75rem;color:var(--muted);}
+.inv-search input{border:none;background:none;outline:none;padding:.6rem 0;font-size:16px;color:var(--ink);width:100%;font-family:'Noto Sans JP',sans-serif;}
+.inv-select{background:var(--warm);border:1px solid var(--border);border-radius:8px;padding:.6rem .75rem;font-size:.85rem;color:var(--ink);font-family:'Noto Sans JP',sans-serif;outline:none;cursor:pointer;}
+.inv-btn{display:inline-flex;align-items:center;gap:.4rem;border-radius:6px;border:1px solid transparent;padding:.45rem .85rem;font-size:.82rem;font-weight:500;cursor:pointer;font-family:'Noto Sans JP',sans-serif;white-space:nowrap;}
+.inv-btn-solid{background:var(--brown);color:var(--linen);}
+.inv-btn-solid:hover{background:var(--rose);}
+.inv-btn-ghost{background:transparent;border-color:var(--border);color:var(--ink);}
+.inv-btn-ghost:hover{background:rgba(0,0,0,.03);}
+.inv-btn-danger{background:var(--warn);color:#fff;}
+.inv-btn-danger:hover{background:#a8431f;}
+.inv-btn-solid:disabled{opacity:.45;cursor:not-allowed;}
+
+.inv-empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:.7rem;padding:4rem 1rem;border:1px dashed var(--border);border-radius:12px;background:rgba(255,255,255,.3);}
+.inv-empty h3{font-family:'Noto Serif JP',serif;font-size:1.3rem;margin:.3rem 0 0;}
+.inv-empty p{color:var(--muted);font-size:.85rem;max-width:340px;}
+
+.inv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:.9rem;}
+.inv-card{background:var(--warm);border:1px solid var(--border);border-radius:10px;padding:1rem;display:flex;gap:.9rem;position:relative;}
+.inv-card-swatch{width:44px;height:56px;border-radius:6px;flex-shrink:0;border:1px solid rgba(0,0,0,.08);}
+.inv-card-info{flex:1;min-width:0;}
+.inv-card-top{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap;}
+.inv-brand-tag{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);}
+.inv-code{font-family:'Noto Serif JP',serif;font-size:1rem;font-weight:600;}
+.inv-color-name{font-size:.78rem;color:var(--muted);margin:.1rem 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.inv-qty-row{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.6rem;}
+.inv-pill{font-size:.68rem;background:rgba(0,0,0,.04);border-radius:999px;padding:2px 8px;color:var(--muted);display:inline-flex;align-items:center;gap:.25rem;}
+.inv-pill-low{background:var(--warn-bg);color:var(--warn);font-weight:500;}
+.inv-project{font-size:.72rem;margin:.5rem 0 0;color:var(--ink);}
+.inv-notes{font-size:.72rem;margin:.25rem 0 0;color:var(--muted);}
+.inv-card-actions{display:flex;flex-direction:column;gap:.25rem;}
+.inv-icon-btn{border:none;background:none;color:var(--muted);cursor:pointer;padding:.35rem;border-radius:6px;display:flex;font-size:1rem;}
+.inv-icon-btn:hover{background:rgba(0,0,0,.05);color:var(--ink);}
+.inv-icon-btn.danger:hover{color:var(--warn);}
+
+/* モーダル */
+.inv-overlay{position:fixed;inset:0;background:rgba(44,31,20,.45);display:flex;align-items:center;justify-content:center;padding:.75rem;z-index:100;}
+.inv-sheet{background:var(--warm);border-radius:12px;width:100%;max-width:320px;max-height:92vh;overflow-y:auto;border:1px solid var(--border);}
+.inv-sheet-head{display:flex;justify-content:space-between;align-items:center;padding:.6rem 1rem 0;}
+.inv-sheet-head h2{font-family:'Noto Serif JP',serif;font-size:1.1rem;margin:0;}
+.inv-sheet-body{padding:.5rem 1rem;display:flex;flex-direction:column;gap:.45rem;}
+.inv-sheet-foot{display:flex;justify-content:flex-end;gap:.5rem;padding:.5rem 1rem .75rem;border-top:1px solid var(--border);}
+.inv-preview-row{display:flex;align-items:center;gap:.7rem;background:rgba(0,0,0,.025);border-radius:6px;padding:.4rem .6rem;}
+.inv-preview-swatch{width:32px;height:40px;border-radius:6px;flex-shrink:0;border:1px solid rgba(0,0,0,.08);}
+.inv-preview-text{display:flex;flex-direction:column;gap:.15rem;}
+.inv-preview-text .mono{font-family:monospace;font-size:.9rem;}
+.inv-preview-text .muted{font-size:.75rem;color:var(--muted);}
+.inv-field-row{display:flex;gap:.5rem;flex-wrap:wrap;}
+.inv-field-row .inv-field{display:flex;flex-direction:column;gap:.2rem;font-size:.75rem;color:var(--muted);flex:1;min-width:0;}
+.inv-field{display:flex;flex-direction:column;gap:.2rem;font-size:.75rem;color:var(--muted);}
+.inv-field span{display:flex;align-items:center;gap:.35rem;}
+.inv-field input,.inv-field select,.inv-field textarea{font-family:'Noto Sans JP',sans-serif;font-size:16px;color:var(--ink);background:#fff;border:1px solid var(--border);border-radius:6px;padding:.28rem .5rem;outline:none;resize:none;}
+.inv-field input:focus,.inv-field select:focus,.inv-field textarea:focus{border-color:var(--rose);}
+.inv-field input[type=range]{padding:0;accent-color:var(--rose);}
+.inv-color-pick-row{display:flex;gap:.5rem;align-items:center;width:100%;}
+.inv-color-pick-row input[type=color]{width:48px;height:42px;flex-shrink:0;padding:2px;border-radius:6px;border:1px solid var(--border);cursor:pointer;}
+.inv-color-pick-row input[type=text]{flex:1;min-width:0;width:100%;}
+.match-tag{font-size:.68rem;font-weight:500;padding:1px 6px;border-radius:999px;}
+.match-ok{background:rgba(92,122,107,.18);color:var(--sage);}
+.match-warn{background:var(--warn-bg);color:var(--warn);}
+.inv-hint{font-size:.75rem;color:var(--muted);margin:-.4rem 0 0;}
+.inv-confirm{background:var(--warm);border-radius:10px;padding:1.4rem;max-width:300px;border:1px solid var(--border);text-align:center;}
+.inv-confirm p{margin:0 0 1rem;font-size:.9rem;}
+.inv-confirm-actions{display:flex;gap:.5rem;justify-content:center;}
+.inv-save-indicator{position:fixed;bottom:1rem;right:1rem;background:var(--ink);color:var(--warm);font-size:.75rem;padding:.35rem .75rem;border-radius:999px;opacity:.85;z-index:200;}
+.inv-error{background:var(--warn-bg);border:1px solid var(--warn);color:var(--warn);border-radius:8px;padding:.65rem .9rem;font-size:.82rem;margin-bottom:1rem;}
+
+/* ── アプリタブ ── */
+.app-tabs{display:flex;gap:.4rem;background:var(--warm);border-top:1px solid var(--border);padding:.6rem .6rem;}
+.app-tab{flex:1;padding:1rem .7rem;font-size:.85rem;font-family:'Noto Sans JP',sans-serif;font-weight:500;color:var(--muted);background:none;border:none;border-radius:999px;cursor:pointer;letter-spacing:.05em;transition:.15s;}
+.app-tab:hover{color:var(--ink);}
+.app-tab.active{color:#fff;background:var(--brown);box-shadow:0 2px 6px rgba(44,31,20,.18);}
+.page{display:none;}.page.active{display:block;}
+.check-badge{font-size:1rem;color:#2E7D32;}
+.color-row.in-stock{border-left:3px solid #2E7D32;}
+
+/* ── 在庫管理 ── */
+.inv-wrap{max-width:1100px;margin:0 auto;padding:1.4rem 1rem 3rem;}
+.inv-header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1rem;margin-bottom:1.4rem;}
+.inv-eyebrow{display:inline-flex;align-items:center;gap:.35rem;font-size:.7rem;letter-spacing:.1em;color:var(--rose);text-transform:uppercase;}
+.inv-title{font-family:'Noto Serif JP',serif;font-size:2rem;font-weight:600;margin-top:.2rem;}
+.inv-stats{display:flex;gap:.4rem;}
+.inv-stat{background:var(--warm);border:1px solid var(--border);border-radius:8px;padding:.5rem .9rem;display:flex;align-items:baseline;gap:.35rem;}
+.inv-stat strong{font-family:'Noto Serif JP',serif;font-size:1.2rem;}
+.inv-stat span{font-size:.72rem;color:var(--muted);}
+.inv-stat-warn{border-color:var(--warn,#C0532A);background:var(--warn-bg,#F3DCC9);}
+.inv-stat-warn strong,.inv-stat-warn span{color:var(--warn,#C0532A);}
+.inv-toolbar{display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1.2rem;}
+.inv-search{flex:1 1 200px;display:flex;align-items:center;gap:.5rem;background:var(--warm);border:1px solid var(--border);border-radius:8px;padding:0 .75rem;color:var(--muted);}
+.inv-search input{border:none;background:none;outline:none;padding:.6rem 0;font-size:16px;color:var(--ink);width:100%;font-family:'Noto Sans JP',sans-serif;}
+.inv-select{background:var(--warm);border:1px solid var(--border);border-radius:8px;padding:.6rem .75rem;font-size:.85rem;color:var(--ink);font-family:'Noto Sans JP',sans-serif;outline:none;cursor:pointer;}
+.inv-btn{display:inline-flex;align-items:center;gap:.4rem;border-radius:6px;border:1px solid transparent;padding:.45rem .85rem;font-size:.82rem;font-weight:500;cursor:pointer;font-family:'Noto Sans JP',sans-serif;white-space:nowrap;}
+.inv-btn-solid{background:var(--brown);color:var(--linen);}
+.inv-btn-solid:hover{background:var(--rose);}
+.inv-btn-ghost{background:transparent;border-color:var(--border);color:var(--ink);}
+.inv-btn-ghost:hover{background:rgba(0,0,0,.03);}
+.inv-btn-danger{background:#C0532A;color:#fff;}
+.inv-btn-danger:hover{background:#a8431f;}
+.inv-btn-solid:disabled{opacity:.45;cursor:not-allowed;}
+.inv-empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:.7rem;padding:4rem 1rem;border:1px dashed var(--border);border-radius:12px;}
+.inv-empty h3{font-family:'Noto Serif JP',serif;font-size:1.3rem;}
+.inv-empty p{color:var(--muted);font-size:.85rem;max-width:340px;}
+.inv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:.9rem;}
+.inv-card{background:var(--warm);border:1px solid var(--border);border-radius:10px;padding:1rem;display:flex;gap:.9rem;}
+.inv-card-swatch{width:44px;height:56px;border-radius:6px;flex-shrink:0;border:1px solid rgba(0,0,0,.08);}
+.inv-card-info{flex:1;min-width:0;}
+.inv-card-top{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap;}
+.inv-brand-tag{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);}
+.inv-code{font-family:'Noto Serif JP',serif;font-size:1rem;font-weight:600;}
+.inv-color-name{font-size:.78rem;color:var(--muted);margin:.1rem 0 0;}
+.inv-qty-row{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.6rem;}
+.inv-pill{font-size:.68rem;background:rgba(0,0,0,.04);border-radius:999px;padding:2px 8px;color:var(--muted);}
+.inv-pill-low{background:#F3DCC9;color:#C0532A;font-weight:500;}
+.inv-project{font-size:.72rem;margin:.5rem 0 0;color:var(--ink);}
+.inv-notes{font-size:.72rem;margin:.25rem 0 0;color:var(--muted);}
+.inv-card-actions{display:flex;flex-direction:column;gap:.25rem;}
+.inv-icon-btn{border:none;background:none;color:var(--muted);cursor:pointer;padding:.35rem;border-radius:6px;display:flex;font-size:1rem;}
+.inv-icon-btn:hover{background:rgba(0,0,0,.05);}
+.inv-overlay{position:fixed;inset:0;background:rgba(44,31,20,.45);display:flex;align-items:center;justify-content:center;padding:.75rem;z-index:100;}
+.inv-sheet{background:var(--warm);border-radius:12px;width:100%;max-width:320px;max-height:92vh;overflow-y:auto;border:1px solid var(--border);}
+.inv-sheet-head{display:flex;justify-content:space-between;align-items:center;padding:.6rem 1rem 0;}
+.inv-sheet-head h2{font-family:'Noto Serif JP',serif;font-size:1.1rem;margin:0;}
+.inv-sheet-body{padding:.5rem 1rem;display:flex;flex-direction:column;gap:.45rem;}
+.inv-sheet-foot{display:flex;justify-content:flex-end;gap:.5rem;padding:.5rem 1rem .75rem;border-top:1px solid var(--border);}
+.inv-preview-row{display:flex;align-items:center;gap:.7rem;background:rgba(0,0,0,.025);border-radius:6px;padding:.4rem .6rem;}
+.inv-preview-swatch{width:32px;height:40px;border-radius:6px;flex-shrink:0;border:1px solid rgba(0,0,0,.08);}
+.inv-preview-text{display:flex;flex-direction:column;gap:.15rem;}
+.inv-preview-text .mono{font-family:monospace;font-size:.9rem;}
+.inv-preview-text .muted{font-size:.75rem;color:var(--muted);}
+.inv-field-row{display:flex;gap:.5rem;flex-wrap:wrap;}
+.inv-field-row .inv-field{display:flex;flex-direction:column;gap:.2rem;font-size:.75rem;color:var(--muted);flex:1;min-width:0;}
+.inv-field{display:flex;flex-direction:column;gap:.2rem;font-size:.75rem;color:var(--muted);}
+.inv-field span{display:flex;align-items:center;gap:.35rem;}
+.inv-field input,.inv-field select,.inv-field textarea{font-family:'Noto Sans JP',sans-serif;font-size:16px;color:var(--ink);background:#fff;border:1px solid var(--border);border-radius:6px;padding:.28rem .5rem;outline:none;resize:none;}
+.inv-field input:focus,.inv-field select:focus,.inv-field textarea:focus{border-color:var(--rose);}
+.inv-field input[type=range]{padding:0;accent-color:var(--rose);}
+.inv-color-pick-row{display:flex;gap:.5rem;align-items:center;width:100%;}
+.inv-color-pick-row input[type=color]{width:48px;height:42px;flex-shrink:0;padding:2px;border-radius:6px;border:1px solid var(--border);cursor:pointer;}
+.inv-color-pick-row input[type=text]{flex:1;min-width:0;width:100%;}
+.match-tag{font-size:.68rem;font-weight:500;padding:1px 6px;border-radius:999px;}
+.match-ok{background:rgba(92,122,107,.18);color:#5C7A6B;}
+.match-warn{background:#F3DCC9;color:#C0532A;}
+.inv-hint{font-size:.75rem;color:var(--muted);}
+.inv-confirm{background:var(--warm);border-radius:10px;padding:1.4rem;max-width:300px;border:1px solid var(--border);text-align:center;}
+.inv-confirm p{margin:0 0 1rem;font-size:.9rem;}
+.inv-confirm-actions{display:flex;gap:.5rem;justify-content:center;}
+.inv-save-indicator{position:fixed;bottom:1rem;right:1rem;background:var(--ink);color:var(--warm);font-size:.75rem;padding:.35rem .75rem;border-radius:999px;opacity:.85;z-index:200;}
+
 </style>
 </head>
 <body>
 
-  <div id="stage">
-    <div id="emptyState">
-      <div class="mark">トレーシングアプリ</div>
-      <div class="msg">画像を選んでください</div>
-    </div>
-    <div id="imgWrap">
-      <img id="img" alt="">
-    </div>
-  </div>
+<nav class="app-tabs">
+  <button class="app-tab active" data-tab="inventory">🗃️ 刺繍糸管理</button>
+  <button class="app-tab" data-tab="matcher">🎨 カラーマッチ</button>
+  <button class="app-tab" data-tab="about">🙋 About Me</button>
+</nav>
 
-  <div id="lockCatcher"></div>
-
-  <div id="startupNotice">
-    <div id="startupCard">
-      <div id="startupMark">はじめる前に</div>
-      <p id="startupText">
-        トレースしやすくするため、タブレット本体の画面の明るさを最大にしてください。
-        画面上端からコントロールセンターを開き、明るさスライダーを一番上まで上げると見やすくなります。
-      </p>
-      <button id="startupClose">はじめる</button>
-    </div>
-  </div>
-
-  <button id="pinBtn" aria-label="固定">
-    <svg viewBox="0 0 24 24" fill="none" stroke="#1c3a54" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M12 2 L12 9" />
-      <path d="M7 9 L17 9 L18.5 13 L5.5 13 Z" />
-      <path d="M12 13 L12 22" />
-    </svg>
-  </button>
-  <div id="pinLabel">固定</div>
-
-  <div id="panel">
-    <div id="panelInner">
-      <div class="actionsRow">
-        <button id="pickBtn">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="4" width="18" height="16" rx="2.5"/>
-            <circle cx="9" cy="10" r="1.8" fill="currentColor" stroke="none"/>
-            <path d="M3 16l5.5-5 4 3.5L17 10l4 5.5"/>
-            <circle cx="18" cy="6" r="3.6" fill="var(--panel)" stroke="currentColor"/>
-            <path d="M18 4.3v3.4M16.3 6h3.4"/>
-          </svg>
-          画像を選択
-        </button>
-
-        <a id="embroideryLink" href="https://maisondeas.github.io/embroidery/" target="_blank" rel="noopener noreferrer">
-          <img src="data:image/jpeg;base64,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" alt="刺繍糸管理&カラーマッチ">
-          <span>刺繍糸管理&カラーマッチ</span>
-        </a>
+<!-- ═══ カラーマッチャー ═══ -->
+<div id="page-matcher" class="page">
+  <div class="matcher-main">
+    <div class="left-col">
+      <p style="font-size:.82rem;color:var(--muted);text-align:center;padding:.5rem 0;">画像から色を抽出 → DMC / COSMO / オリムパス の糸番号を提案</p>
+      <p style="font-size:.78rem;color:var(--muted);text-align:center;padding:0 0 .5rem;">刺繍糸管理に登録済みの糸は、色がマッチすると✅が表示されます。</p>
+      <div class="upload-zone" id="upload-zone">
+        <input type="file" id="file-input" accept="image/*">
+        <span class="upload-icon">🖼️</span>
+        <h2>画像をアップロード</h2>
+        <p>クリックまたはドラッグ&ドロップ</p>
+        <p style="margin-top:.2rem">PNG / JPG / WEBP 対応</p>
       </div>
-
-      <div id="hint">指1本で移動、指2本のピンチで大きさを調整できます。固定ボタンで操作をロックできます。</div>
+      <div id="preview-section">
+        <div class="toolbar">
+          <button class="tb-btn active" id="btn-mode-pan">✋ 移動</button>
+          <button class="tb-btn" id="btn-mode-sel">⬚ 範囲選択</button>
+          <button class="btn-clear-sel" id="btn-clear-sel">✕ 選択解除</button>
+          <span class="tb-sep"></span>
+          <button class="zb" id="btn-zoom-out">−</button>
+          <span class="zoom-label" id="zoom-label">100%</span>
+          <button class="zb" id="btn-zoom-in">＋</button>
+          <button class="zb" id="btn-zoom-fit" style="width:auto;padding:0 5px;font-size:.62rem;">FIT</button>
+        </div>
+        <div class="viewport" id="viewport">
+          <canvas id="view-canvas"></canvas>
+          <svg id="sel-overlay" width="100%" height="100%">
+            <defs><mask id="sel-mask"><rect id="mask-bg" width="100%" height="100%" fill="white"/><rect id="mask-hole" fill="black"/></mask></defs>
+            <rect id="dim-rect" width="100%" height="100%" fill="rgba(0,0,0,.48)" mask="url(#sel-mask)" visibility="hidden"/>
+            <rect id="sel-rect" fill="none" stroke="white" stroke-width="1.5" stroke-dasharray="6,3" visibility="hidden"/>
+            <rect id="drag-rect" fill="none" stroke="#C4866A" stroke-width="1.5" stroke-dasharray="6,3" visibility="hidden"/>
+          </svg>
+        </div>
+        <div class="hint-bar" id="hint-bar"><b>移動モード</b>：ドラッグでパン ／ ホイール・ピンチでズーム</div>
+        <div class="count-row">
+          <span class="count-label">抽出する色数</span>
+          <div class="count-btns" id="count-btns">
+            <button class="count-btn" data-count="4">4</button>
+            <button class="count-btn" data-count="6">6</button>
+            <button class="count-btn active" data-count="8">8</button>
+            <button class="count-btn" data-count="10">10</button>
+            <button class="count-btn" data-count="12">12</button>
+            <button class="count-btn" data-count="16">16</button>
+          </div>
+        </div>
+        <button class="btn-extract" id="btn-extract">色を抽出して糸番号を探す</button>
+      </div>
+      <div class="loading" id="loading"><div class="spinner"></div><div>色を解析中…</div></div>
+    </div>
+    <div class="right-col">
+      <div id="results-section">
+        <p class="section-title">マッチング結果</p>
+        <div class="brand-tabs">
+          <button class="brand-tab active" data-brand="dmc">DMC</button>
+          <button class="brand-tab" data-brand="cosmo">COSMO</button>
+          <button class="brand-tab" data-brand="olympus">オリムパス</button>
+        </div>
+        <div id="panel-dmc" class="brand-panel active"><div class="color-list" id="list-dmc"></div></div>
+        <div id="panel-cosmo" class="brand-panel"><div class="color-list" id="list-cosmo"></div></div>
+        <div id="panel-olympus" class="brand-panel"><div class="color-list" id="list-olympus"></div></div>
+      </div>
     </div>
   </div>
+</div>
 
-  <input type="file" id="fileInput" accept="image/*">
+<!-- ═══ 在庫管理ページ ═══ -->
+<div id="page-inventory" class="page active">
+  <div class="inv-wrap">
+    <div class="inv-header">
+      <div>
+        <div class="inv-eyebrow">🧵 手持ちの刺繍糸を保存して管理できます</div>
+      </div>
+      <div class="inv-stats">
+        <div class="inv-stat"><strong id="stat-total">0</strong><span>本</span></div>
+        <div class="inv-stat inv-stat-warn" id="stat-low-box" style="display:none">
+          <strong id="stat-low">0</strong><span>残り少ない</span>
+        </div>
+      </div>
+    </div>
+    <div class="inv-toolbar">
+      <label class="inv-search">🔍<input id="inv-query" placeholder="色番号・色名・プロジェクトで検索"></label>
+      <select class="inv-select" id="inv-brand-filter"><option value="すべて">すべてのブランド</option></select>
+      <select class="inv-select" id="inv-sort">
+        <option value="brand">ブランド・番号順</option>
+        <option value="low">残量が少ない順</option>
+        <option value="recent">追加が新しい順</option>
+      </select>
+      <button class="inv-btn inv-btn-solid" id="inv-add-btn">＋ 糸を追加</button>
+      <button class="inv-btn inv-btn-ghost" id="inv-dup-btn">🔁 重複チェック</button>
+      <button class="inv-btn inv-btn-ghost" id="inv-export-btn">📤 バックアップ</button>
+      <label class="inv-btn inv-btn-ghost">📥 インポート<input type="file" id="inv-import-input" accept=".json" style="display:none"></label>
+    </div>
+    <div id="inv-list-wrap"></div>
+  </div>
+</div>
+
+<!-- ═══ About Me ページ ═══ -->
+<div id="page-about" class="page">
+  <div class="about-wrap">
+    <div class="about-card">
+      <div class="about-icon">🧵</div>
+      <p class="about-desc">洋裁ブログを運営してます。刺繍も大好き❤️</p>
+      <div class="about-links">
+        <a class="about-link" href="https://maisondeas.com/" target="_blank" rel="noopener">🌐 MAISONDEAS</a>
+        <a class="about-link" href="https://x.com/maisondeas" target="_blank" rel="noopener">𝕏 X（旧Twitter）</a>
+        <a class="about-link" href="https://www.threads.com/@maisondeas" target="_blank" rel="noopener">🧵 Threads</a>
+        <a class="about-link" href="https://www.instagram.com/maisondeas/" target="_blank" rel="noopener">📷 Instagram</a>
+        <a class="about-link" href="https://maisondeas.github.io/tracing/" target="_blank" rel="noopener">✏️ トレーシングアプリ</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 追加/編集モーダル -->
+<div class="inv-overlay" id="inv-modal" style="display:none">
+  <div class="inv-sheet">
+    <div class="inv-sheet-head">
+      <h2 id="modal-title">糸を追加</h2>
+      <button class="inv-icon-btn" id="modal-close">✕</button>
+    </div>
+    <div class="inv-sheet-body">
+      <div class="inv-preview-row">
+        <div class="inv-preview-swatch" id="modal-swatch"></div>
+        <div class="inv-preview-text">
+          <span class="mono" id="modal-preview-num">—</span>
+          <span class="muted" id="modal-preview-name">色名未設定</span>
+        </div>
+      </div>
+      <div class="inv-field-row">
+        <label class="inv-field">
+          <span>ブランド</span>
+          <select id="modal-brand">
+            <option>DMC</option><option>コスモ</option><option>オリムパス</option><option>アンカー</option><option>その他</option>
+          </select>
+        </label>
+        <label class="inv-field" id="custom-brand-field" style="display:none">
+          <span>ブランド名</span>
+          <input id="modal-custom-brand" placeholder="例: ハマナカ">
+        </label>
+      </div>
+      <div class="inv-field-row">
+        <label class="inv-field">
+          <span>色番号 <span id="match-tag" class="match-tag" style="display:none"></span></span>
+          <input id="modal-num" placeholder="例: 310" style="font-family:monospace">
+        </label>
+        <label class="inv-field">
+          <span>色名</span>
+          <input id="modal-name" placeholder="例: ブラック">
+        </label>
+      </div>
+      <p class="inv-hint" id="dmc-hint" style="display:none">DMCの番号を入力すると色見本が自動設定されます。</p>
+      <label class="inv-field">
+        <span>色見本</span>
+        <div class="inv-color-pick-row">
+          <input type="color" id="modal-color-picker" value="#B5483D">
+          <input type="text" id="modal-hex" value="#B5483D" class="mono" placeholder="#000000" style="flex:1">
+        </div>
+      </label>
+      <div class="inv-field-row">
+        <label class="inv-field">
+          <span>未開封の本数</span>
+          <input type="number" id="modal-skeins" min="0" value="1">
+        </label>
+        <label class="inv-field">
+          <span>使用中の残量
+            <select id="modal-remaining-unit" style="margin-left:.4rem;width:auto;">
+              <option value="percent">%で入力</option>
+              <option value="meters">mで入力</option>
+            </select>
+          </span>
+          <div id="modal-remaining-percent-wrap">
+            <span id="modal-remaining-label">100</span>%
+            <input type="range" id="modal-remaining" min="0" max="100" step="5" value="100">
+          </div>
+          <div id="modal-remaining-meters-wrap" style="display:none">
+            <input type="number" id="modal-remaining-meters" min="0" step="0.5" value="8" style="width:100%;"> m
+          </div>
+        </label>
+      </div>
+      <label class="inv-field">
+        <span>使用予定・プロジェクト</span>
+        <input id="modal-project" placeholder="例: クロスステッチの花柄">
+      </label>
+      <label class="inv-field">
+        <span>メモ</span>
+        <textarea id="modal-notes" rows="1" placeholder="任意"></textarea>
+      </label>
+    </div>
+    <div id="modal-error" style="display:none;margin:0 1.2rem;padding:.6rem .85rem;background:var(--warn-bg);border:1px solid var(--warn);color:var(--warn);border-radius:8px;font-size:.82rem;"></div>
+    <div class="inv-sheet-foot">
+      <button class="inv-btn inv-btn-ghost" id="modal-cancel">キャンセル</button>
+      <button class="inv-btn inv-btn-solid" id="modal-save">保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- 削除確認 -->
+<div class="inv-overlay" id="confirm-modal" style="display:none">
+  <div class="inv-confirm">
+    <p>この糸の記録を削除しますか？</p>
+    <div class="inv-confirm-actions">
+      <button class="inv-btn inv-btn-ghost" id="confirm-cancel">キャンセル</button>
+      <button class="inv-btn inv-btn-danger" id="confirm-ok">削除する</button>
+    </div>
+  </div>
+</div>
+
+<!-- 重複チェック結果 -->
+<div class="inv-overlay" id="dup-modal" style="display:none">
+  <div class="inv-confirm">
+    <p id="dup-modal-body">確認中…</p>
+    <div class="inv-confirm-actions">
+      <button class="inv-btn inv-btn-solid" id="dup-modal-close">閉じる</button>
+    </div>
+  </div>
+</div>
+<div class="inv-save-indicator" id="save-indicator" style="display:none">保存中…</div>
+
+<canvas id="off-canvas" style="display:none"></canvas>
 
 <script>
-(function(){
-  const stage = document.getElementById('stage');
-  const imgWrap = document.getElementById('imgWrap');
-  const img = document.getElementById('img');
-  const emptyState = document.getElementById('emptyState');
-  const pinBtn = document.getElementById('pinBtn');
-  const fileInput = document.getElementById('fileInput');
-  const pickBtn = document.getElementById('pickBtn');
-  const startupNotice = document.getElementById('startupNotice');
-  const startupClose = document.getElementById('startupClose');
+// ══════════════════════════════════════════════
+//  糸データ（マッチャー用）
+// ══════════════════════════════════════════════
+const DMC=[
+  {n:"01",name:"White Tin",h:"#C5C5C5"},{n:"02",name:"Tin",h:"#ABABAB"},{n:"03",name:"Tin Medium",h:"#908F90"},{n:"04",name:"Tin Dark",h:"#676464"},
+  {n:"05",name:"Driftwood Light",h:"#BBAFA5"},{n:"06",name:"Driftwood Med Light",h:"#B4A293"},{n:"07",name:"Driftwood",h:"#746256"},{n:"08",name:"Driftwood Dark",h:"#695B50"},
+  {n:"09",name:"Cocoa Vy Dk",h:"#483837"},{n:"10",name:"Tender Green Vy Lt",h:"#CECEB8"},{n:"11",name:"Tender Green Lt",h:"#E0DC84"},{n:"12",name:"Tender Green",h:"#CFC662"},
+  {n:"13",name:"Nile Green Med Lt",h:"#98C29C"},{n:"14",name:"Apple Green Pale",h:"#CED194"},{n:"15",name:"Apple Green",h:"#CDD684"},{n:"16",name:"Chartreuse Light",h:"#B0B56A"},
+  {n:"17",name:"Yellow Plum Light",h:"#D5C551"},{n:"18",name:"Yellow Plum",h:"#D9BF4A"},{n:"19",name:"Autumn Gold Med Lt",h:"#CC9C52"},{n:"20",name:"Shrimp",h:"#F7D1B3"},
+  {n:"21",name:"Alizarin Light",h:"#C0614D"},{n:"22",name:"Alizarin",h:"#922A29"},{n:"23",name:"Apple Blossom",h:"#E8DADF"},{n:"24",name:"White Lavender",h:"#E0D9E4"},
+  {n:"25",name:"Lavender Ult Lt",h:"#D0CADB"},{n:"26",name:"Lavender Pale",h:"#BBB0D1"},{n:"27",name:"White Violet",h:"#D9D4D8"},{n:"28",name:"Eggplant Med Lt",h:"#8178A0"},
+  {n:"29",name:"Eggplant",h:"#493C5E"},{n:"30",name:"Blueberry Med Lt",h:"#8A89B0"},{n:"31",name:"Blueberry",h:"#65629D"},{n:"32",name:"Blueberry Dark",h:"#565385"},
+  {n:"33",name:"Fuchsia",h:"#884B8E"},{n:"34",name:"Fuchsia Dark",h:"#7A3070"},{n:"35",name:"Fuchsia Vy Dk",h:"#58274B"},
+  {n:"150",name:"Dusty Rose Ult Vy Dk",h:"#AB0249"},{n:"151",name:"Dusty Rose Vry Lt",h:"#F0CED4"},{n:"152",name:"Shell Pink Med Light",h:"#E2A099"},{n:"153",name:"Violet Very Light",h:"#E6CCD9"},
+  {n:"154",name:"Grape Very Dark",h:"#572433"},{n:"155",name:"Blue Violet Med Dark",h:"#9891B6"},{n:"156",name:"Blue Violet Med Lt",h:"#A3AED1"},{n:"157",name:"Cornflower Blue Vy Lt",h:"#BBC3D9"},
+  {n:"158",name:"Cornflower Blu M V D",h:"#4C526E"},{n:"159",name:"Blue Gray Light",h:"#C7CAD7"},{n:"160",name:"Blue Gray Medium",h:"#999FB7"},{n:"161",name:"Blue Gray",h:"#7880A4"},
+  {n:"162",name:"Blue Ultra Very Light",h:"#DBECF5"},{n:"163",name:"Celadon Green Md",h:"#4D8361"},{n:"164",name:"Forest Green Lt",h:"#C8D8B8"},{n:"165",name:"Moss Green Vy Lt",h:"#EFF4A4"},
+  {n:"166",name:"Moss Green Md Lt",h:"#C0C840"},{n:"167",name:"Yellow Beige V Dk",h:"#A77C49"},{n:"168",name:"Pewter Very Light",h:"#D1D1D1"},{n:"169",name:"Pewter Light",h:"#848484"},
+  {n:"208",name:"Lavender Very Dark",h:"#835B8B"},{n:"209",name:"Lavender Dark",h:"#A37BA7"},{n:"210",name:"Lavender Medium",h:"#C39FC3"},{n:"211",name:"Lavender Light",h:"#E3CBE3"},
+  {n:"221",name:"Shell Pink Vy Dk",h:"#883E43"},{n:"223",name:"Shell Pink Light",h:"#CC847C"},{n:"224",name:"Shell Pink Very Light",h:"#EBB7AF"},{n:"225",name:"Shell Pink Ult Vy Lt",h:"#FFDFD5"},
+  {n:"300",name:"Mahogany Vy Dk",h:"#6F2F00"},{n:"301",name:"Mahogany Med",h:"#B35F2B"},{n:"304",name:"Red Medium",h:"#B71F33"},{n:"307",name:"Lemon",h:"#FDED54"},
+  {n:"309",name:"Rose Dark",h:"#C12041"},{n:"310",name:"Black",h:"#000000"},{n:"311",name:"Wedgewood Ult VyDk",h:"#1C5066"},{n:"312",name:"Baby Blue Very Dark",h:"#35668B"},
+  {n:"315",name:"Antique Mauve Md Dk",h:"#814952"},{n:"316",name:"Antique Mauve Med",h:"#B7737F"},{n:"317",name:"Pewter Gray",h:"#6C6C6C"},{n:"318",name:"Steel Gray Lt",h:"#ABABAB"},
+  {n:"319",name:"Pistachio Grn Vy Dk",h:"#205F2E"},{n:"320",name:"Pistachio Green Med",h:"#69885A"},{n:"321",name:"Red",h:"#C72B3B"},{n:"322",name:"Baby Blue Dark",h:"#5A8FB8"},
+  {n:"326",name:"Rose Very Dark",h:"#B33B4B"},{n:"327",name:"Violet Dark",h:"#633666"},{n:"333",name:"Blue Violet Very Dark",h:"#5C5478"},{n:"334",name:"Baby Blue Medium",h:"#739FC1"},
+  {n:"335",name:"Rose",h:"#EE546E"},{n:"336",name:"Navy Blue",h:"#253B73"},{n:"340",name:"Blue Violet Medium",h:"#ADA7C7"},{n:"341",name:"Blue Violet Light",h:"#B7BFDD"},
+  {n:"347",name:"Salmon Very Dark",h:"#BF2D2D"},{n:"349",name:"Coral Dark",h:"#D21035"},{n:"350",name:"Coral Medium",h:"#E04848"},{n:"351",name:"Coral",h:"#E96A67"},
+  {n:"352",name:"Coral Light",h:"#FD9C97"},{n:"353",name:"Peach",h:"#FED7CC"},{n:"355",name:"Terra Cotta Dark",h:"#984436"},{n:"356",name:"Terra Cotta Med",h:"#C56A5B"},
+  {n:"367",name:"Pistachio Green Dk",h:"#617A52"},{n:"368",name:"Pistachio Green Lt",h:"#A6C298"},{n:"369",name:"Pistachio Green Vy Lt",h:"#D7EDCC"},{n:"370",name:"Mustard Medium",h:"#B89D64"},
+  {n:"371",name:"Mustard",h:"#BFA671"},{n:"372",name:"Mustard Lt",h:"#CCB784"},{n:"400",name:"Mahogany Dark",h:"#8F430F"},{n:"402",name:"Mahogany Vy Lt",h:"#F7A777"},
+  {n:"407",name:"Desert Sand Med",h:"#BB8161"},{n:"413",name:"Pewter Gray Dark",h:"#565656"},{n:"414",name:"Steel Gray Dk",h:"#8C8C8C"},{n:"415",name:"Pearl Gray",h:"#D3D3D6"},
+  {n:"420",name:"Hazelnut Brown Dk",h:"#A07042"},{n:"422",name:"Hazelnut Brown Lt",h:"#C69F7B"},{n:"433",name:"Brown Med",h:"#7A451F"},{n:"434",name:"Brown Light",h:"#985E33"},
+  {n:"435",name:"Brown Very Light",h:"#B87748"},{n:"436",name:"Tan",h:"#CB9051"},{n:"437",name:"Tan Light",h:"#E4BB8E"},{n:"444",name:"Lemon Dark",h:"#FFD600"},
+  {n:"445",name:"Lemon Light",h:"#FFFB8B"},{n:"451",name:"Shell Gray Dark",h:"#917B73"},{n:"452",name:"Shell Gray Med",h:"#C0B3AE"},{n:"453",name:"Shell Gray Light",h:"#D7CECB"},
+  {n:"469",name:"Avocado Green",h:"#72843C"},{n:"470",name:"Avocado Grn Lt",h:"#94AB4F"},{n:"471",name:"Avocado Grn V Lt",h:"#AEBF79"},{n:"472",name:"Avocado Grn U Lt",h:"#D8E498"},
+  {n:"498",name:"Red Dark",h:"#A7132B"},{n:"500",name:"Blue Green Vy Dk",h:"#044D33"},{n:"501",name:"Blue Green Dark",h:"#396F52"},{n:"502",name:"Blue Green",h:"#5B9071"},
+  {n:"503",name:"Blue Green Med",h:"#7BAC94"},{n:"504",name:"Blue Green Vy Lt",h:"#C4DECC"},{n:"505",name:"Jade Green",h:"#338362"},{n:"517",name:"Wedgewood Dark",h:"#3B768F"},
+  {n:"518",name:"Wedgewood Light",h:"#4F93A7"},{n:"519",name:"Sky Blue",h:"#7EB1C8"},{n:"520",name:"Fern Green Dark",h:"#666D4F"},{n:"522",name:"Fern Green",h:"#969E7E"},
+  {n:"523",name:"Fern Green Lt",h:"#ABB197"},{n:"524",name:"Fern Green Vy Lt",h:"#C4CDAC"},{n:"535",name:"Ash Gray Vy Lt",h:"#636458"},{n:"543",name:"Beige Brown Ult Vy Lt",h:"#F2E3CE"},
+  {n:"550",name:"Violet Very Dark",h:"#5C184E"},{n:"552",name:"Violet Medium",h:"#803A6B"},{n:"553",name:"Violet",h:"#A3638B"},{n:"554",name:"Violet Light",h:"#DBB3CB"},
+  {n:"561",name:"Celadon Green VD",h:"#2C6A45"},{n:"562",name:"Jade Medium",h:"#53976A"},{n:"563",name:"Jade Light",h:"#8FC098"},{n:"564",name:"Jade Very Light",h:"#A7CDAF"},
+  {n:"580",name:"Moss Green Dk",h:"#888D33"},{n:"581",name:"Moss Green",h:"#A7AE38"},{n:"597",name:"Turquoise",h:"#5BA3B3"},{n:"598",name:"Turquoise Light",h:"#90C3CC"},
+  {n:"600",name:"Cranberry Very Dark",h:"#CD2F63"},{n:"601",name:"Cranberry Dark",h:"#D1286A"},{n:"602",name:"Cranberry Medium",h:"#E24874"},{n:"603",name:"Cranberry",h:"#FFA4BE"},
+  {n:"604",name:"Cranberry Light",h:"#FFB0BE"},{n:"605",name:"Cranberry Very Light",h:"#FFC0CD"},{n:"606",name:"Orange Red Bright",h:"#FA3203"},{n:"608",name:"Burnt Orange Bright",h:"#FD5D35"},
+  {n:"610",name:"Drab Brown Dk",h:"#796047"},{n:"611",name:"Drab Brown",h:"#967656"},{n:"612",name:"Drab Brown Lt",h:"#BC9A78"},{n:"613",name:"Drab Brown V Lt",h:"#DCC4AA"},
+  {n:"632",name:"Desert Sand Ult Vy Dk",h:"#875539"},{n:"640",name:"Beige Gray Vy Dk",h:"#857B61"},{n:"642",name:"Beige Gray Dark",h:"#A49878"},{n:"644",name:"Beige Gray Med",h:"#DDD8CB"},
+  {n:"645",name:"Beaver Gray Vy Dk",h:"#6E655C"},{n:"646",name:"Beaver Gray Dk",h:"#877D73"},{n:"647",name:"Beaver Gray Med",h:"#B0A69C"},{n:"648",name:"Beaver Gray Lt",h:"#BCB4AC"},
+  {n:"666",name:"Bright Red",h:"#E31D42"},{n:"676",name:"Old Gold Lt",h:"#E5CE97"},{n:"677",name:"Old Gold Vy Lt",h:"#F5ECCB"},{n:"680",name:"Old Gold Dark",h:"#BC8D0E"},
+  {n:"699",name:"Green",h:"#056517"},{n:"700",name:"Green Bright",h:"#07731B"},{n:"701",name:"Green Light",h:"#3F8F29"},{n:"702",name:"Kelly Green",h:"#47A72F"},
+  {n:"703",name:"Chartreuse",h:"#7BB547"},{n:"704",name:"Chartreuse Bright",h:"#9ECF34"},{n:"712",name:"Cream",h:"#FFFBEF"},{n:"718",name:"Plum",h:"#9C2462"},
+  {n:"720",name:"Orange Spice Dark",h:"#E55C1F"},{n:"721",name:"Orange Spice Med",h:"#F27842"},{n:"722",name:"Orange Spice Light",h:"#F7976F"},{n:"725",name:"Topaz Med Lt",h:"#FFC840"},
+  {n:"726",name:"Topaz Light",h:"#FDD755"},{n:"727",name:"Topaz Vy Lt",h:"#FFF1AF"},{n:"728",name:"Topaz",h:"#E4B468"},{n:"729",name:"Old Gold Medium",h:"#D0A53E"},
+  {n:"730",name:"Olive Green V Dk",h:"#827B30"},{n:"731",name:"Olive Green Dk",h:"#938B37"},{n:"732",name:"Olive Green",h:"#948C36"},{n:"733",name:"Olive Green Md",h:"#BCB34C"},
+  {n:"734",name:"Olive Green Lt",h:"#C7C077"},{n:"738",name:"Tan Very Light",h:"#ECCC9E"},{n:"739",name:"Tan Ult Vy Lt",h:"#F8E4C8"},{n:"740",name:"Tangerine",h:"#FF8B00"},
+  {n:"741",name:"Tangerine Med",h:"#FFA32B"},{n:"742",name:"Tangerine Light",h:"#FFBF57"},{n:"743",name:"Yellow Med",h:"#FED376"},{n:"744",name:"Yellow Pale",h:"#FFE793"},
+  {n:"745",name:"Yellow Pale Light",h:"#FFE9AD"},{n:"746",name:"Off White",h:"#FCFCEE"},{n:"747",name:"Peacock Blue Vy Lt",h:"#E5FCFD"},{n:"754",name:"Peach Light",h:"#F7CBBF"},
+  {n:"758",name:"Terra Cotta Vy Lt",h:"#EEAA9B"},{n:"760",name:"Salmon",h:"#F5ADAD"},{n:"761",name:"Salmon Light",h:"#FFC9C9"},{n:"762",name:"Pearl Gray Vy Lt",h:"#ECECEC"},
+  {n:"772",name:"Yellow Green Vy Lt",h:"#E4ECD4"},{n:"775",name:"Baby Blue Very Light",h:"#D9EBF1"},{n:"776",name:"Pink Medium",h:"#FCB0B9"},{n:"777",name:"Raspberry Very Dark",h:"#913546"},
+  {n:"778",name:"Antique Mauve Vy Lt",h:"#DFB3BB"},{n:"779",name:"Cocoa Dark",h:"#624B45"},{n:"780",name:"Topaz Ultra Vy Dk",h:"#94631A"},{n:"781",name:"Topaz Very Dark",h:"#A26D20"},
+  {n:"782",name:"Topaz Dark",h:"#AE7720"},{n:"783",name:"Topaz Medium",h:"#CE9124"},{n:"791",name:"Cornflower Blue V D",h:"#464563"},{n:"792",name:"Cornflower Blue Dark",h:"#555B7B"},
+  {n:"793",name:"Cornflower Blue Med",h:"#707DA2"},{n:"794",name:"Cornflower Blue Light",h:"#8F9CC1"},{n:"796",name:"Royal Blue Dark",h:"#11416D"},{n:"797",name:"Royal Blue",h:"#13477D"},
+  {n:"798",name:"Delft Blue Dark",h:"#466A8E"},{n:"799",name:"Delft Blue Medium",h:"#748EB6"},{n:"800",name:"Delft Blue Pale",h:"#C0CCDE"},{n:"801",name:"Coffee Brown Dk",h:"#653919"},
+  {n:"803",name:"Baby Blue Ult Vy Dk",h:"#2C597C"},{n:"806",name:"Peacock Blue Dark",h:"#3D95A5"},{n:"807",name:"Peacock Blue",h:"#64ABBA"},{n:"809",name:"Delft Blue",h:"#94A8C6"},
+  {n:"813",name:"Blue Light",h:"#A1C2D7"},{n:"814",name:"Garnet Dark",h:"#7B001B"},{n:"815",name:"Garnet Medium",h:"#87071F"},{n:"816",name:"Garnet",h:"#970B23"},
+  {n:"817",name:"Coral Red Very Dark",h:"#BB051F"},{n:"818",name:"Baby Pink",h:"#FFDFD9"},{n:"819",name:"Baby Pink Light",h:"#FFEEEB"},{n:"820",name:"Royal Blue Very Dark",h:"#0E365C"},
+  {n:"822",name:"Beige Gray Light",h:"#E7E2D3"},{n:"823",name:"Navy Blue Dark",h:"#213063"},{n:"824",name:"Blue Very Dark",h:"#396987"},{n:"825",name:"Blue Dark",h:"#4781A5"},
+  {n:"826",name:"Blue Medium",h:"#6B9EBF"},{n:"827",name:"Blue Very Light",h:"#BDDDIED"},{n:"828",name:"Sky Blue Vy Lt",h:"#C5E8ED"},{n:"829",name:"Golden Olive Vy Dk",h:"#7E6B42"},
+  {n:"830",name:"Golden Olive Dk",h:"#8D784B"},{n:"831",name:"Golden Olive Md",h:"#AA8F56"},{n:"832",name:"Golden Olive",h:"#BD9B51"},{n:"833",name:"Golden Olive Lt",h:"#C8AB6C"},
+  {n:"834",name:"Golden Olive Vy Lt",h:"#DBBE7F"},{n:"838",name:"Beige Brown Vy Dk",h:"#594937"},{n:"839",name:"Beige Brown Dk",h:"#675541"},{n:"840",name:"Beige Brown Med",h:"#9A7C5C"},
+  {n:"841",name:"Beige Brown Lt",h:"#B69B7E"},{n:"842",name:"Beige Brown Vy Lt",h:"#D1BAA1"},{n:"844",name:"Beaver Gray Ult Dk",h:"#484848"},{n:"869",name:"Hazelnut Brown V Dk",h:"#835E39"},
+  {n:"890",name:"Pistachio Grn Ult V D",h:"#174923"},{n:"891",name:"Carnation Dark",h:"#FF5773"},{n:"892",name:"Carnation Medium",h:"#FF798C"},{n:"893",name:"Carnation Light",h:"#FC90A2"},
+  {n:"894",name:"Carnation Very Light",h:"#FFB2BB"},{n:"895",name:"Hunter Green Vy Dk",h:"#1B5300"},{n:"898",name:"Coffee Brown Vy Dk",h:"#492A13"},{n:"899",name:"Rose Medium",h:"#F27688"},
+  {n:"900",name:"Burnt Orange Dark",h:"#D15807"},{n:"902",name:"Garnet Very Dark",h:"#822637"},{n:"904",name:"Parrot Green V Dk",h:"#557822"},{n:"905",name:"Parrot Green Dk",h:"#628A28"},
+  {n:"906",name:"Parrot Green Md",h:"#7FB335"},{n:"907",name:"Parrot Green Lt",h:"#C7E666"},{n:"909",name:"Emerald Green Vy Dk",h:"#156F49"},{n:"910",name:"Emerald Green Dark",h:"#187E56"},
+  {n:"911",name:"Emerald Green Med",h:"#189065"},{n:"912",name:"Emerald Green Lt",h:"#1B9D6B"},{n:"913",name:"Nile Green Med",h:"#6DAB77"},{n:"915",name:"Plum Dark",h:"#820043"},
+  {n:"917",name:"Plum Medium",h:"#9B1359"},{n:"918",name:"Red Copper Dark",h:"#82340A"},{n:"919",name:"Red Copper",h:"#A64510"},{n:"920",name:"Copper Med",h:"#AC5414"},
+  {n:"921",name:"Copper",h:"#C66218"},{n:"922",name:"Copper Light",h:"#E27323"},{n:"924",name:"Gray Green Vy Dark",h:"#566A6A"},{n:"926",name:"Gray Green Med",h:"#98AEAE"},
+  {n:"927",name:"Gray Green Light",h:"#BDCBCB"},{n:"928",name:"Gray Green Vy Lt",h:"#DDE3E3"},{n:"930",name:"Antique Blue Dark",h:"#455C71"},{n:"931",name:"Antique Blue Medium",h:"#6A859E"},
+  {n:"932",name:"Antique Blue Light",h:"#A2B5C6"},{n:"934",name:"Avocado Grn Black",h:"#313919"},{n:"935",name:"Avocado Green Dk",h:"#424D21"},{n:"936",name:"Avocado Grn V Dk",h:"#4C5826"},
+  {n:"937",name:"Avocado Green Md",h:"#627133"},{n:"938",name:"Coffee Brown Ult Dk",h:"#361F0E"},{n:"939",name:"Navy Blue Very Dark",h:"#1B2853"},{n:"943",name:"Green Bright Md",h:"#3D9384"},
+  {n:"945",name:"Tawny",h:"#FBD5BB"},{n:"946",name:"Burnt Orange Med",h:"#EB6307"},{n:"947",name:"Burnt Orange",h:"#FF7B4D"},{n:"948",name:"Peach Very Light",h:"#FEE7DA"},
+  {n:"950",name:"Desert Sand Light",h:"#EED3C4"},{n:"951",name:"Tawny Light",h:"#FFE2CF"},{n:"954",name:"Nile Green",h:"#88BA91"},{n:"955",name:"Nile Green Light",h:"#A2D6AD"},
+  {n:"956",name:"Geranium",h:"#FF9191"},{n:"957",name:"Geranium Pale",h:"#FDB5B5"},{n:"958",name:"Sea Green Dark",h:"#3EB6A1"},{n:"959",name:"Sea Green Med",h:"#59C7B4"},
+  {n:"961",name:"Dusty Rose Dark",h:"#CF7373"},{n:"962",name:"Dusty Rose Medium",h:"#E68A8A"},{n:"963",name:"Dusty Rose Ult Vy Lt",h:"#FFD7D7"},{n:"964",name:"Sea Green Light",h:"#A9E2D8"},
+  {n:"966",name:"Jade Ultra Vy Lt",h:"#B9D7C0"},{n:"967",name:"Apricot Very Light",h:"#FFDED5"},{n:"970",name:"Pumpkin Light",h:"#F78B13"},{n:"971",name:"Pumpkin",h:"#F67F00"},
+  {n:"972",name:"Canary Deep",h:"#FFB515"},{n:"973",name:"Canary Bright",h:"#FFE300"},{n:"975",name:"Golden Brown Dk",h:"#914F12"},{n:"976",name:"Golden Brown Med",h:"#C28142"},
+  {n:"977",name:"Golden Brown Light",h:"#DC9C56"},{n:"986",name:"Forest Green Vy Dk",h:"#405230"},{n:"987",name:"Forest Green Dk",h:"#587141"},{n:"988",name:"Forest Green Med",h:"#738B5B"},
+  {n:"989",name:"Forest Green",h:"#8DA675"},{n:"991",name:"Aquamarine Dk",h:"#477B6E"},{n:"992",name:"Aquamarine Lt",h:"#6FAE9F"},{n:"993",name:"Aquamarine Vy Lt",h:"#90C0B4"},
+  {n:"995",name:"Electric Blue Dark",h:"#2696B6"},{n:"996",name:"Electric Blue Medium",h:"#30C2EC"},{n:"3011",name:"Khaki Green Dk",h:"#898A58"},{n:"3012",name:"Khaki Green Md",h:"#A6A75D"},
+  {n:"3013",name:"Khaki Green Lt",h:"#B9B982"},{n:"3021",name:"Brown Gray Vy Dk",h:"#4F4B41"},{n:"3022",name:"Brown Gray Med",h:"#8E9078"},{n:"3023",name:"Brown Gray Light",h:"#B1AA97"},
+  {n:"3024",name:"Brown Gray Vy Lt",h:"#EBEAE7"},{n:"3031",name:"Mocha Brown Vy Dk",h:"#4B3C2A"},{n:"3032",name:"Mocha Brown Med",h:"#B39F8B"},{n:"3033",name:"Mocha Brown Vy Lt",h:"#E3D8CC"},
+  {n:"3041",name:"Antique Violet Medium",h:"#956F7C"},{n:"3042",name:"Antique Violet Light",h:"#B79DA7"},{n:"3045",name:"Yellow Beige Dk",h:"#BC966A"},{n:"3046",name:"Yellow Beige Md",h:"#D8BC9A"},
+  {n:"3047",name:"Yellow Beige Lt",h:"#E7D6C1"},{n:"3051",name:"Green Gray Dk",h:"#5F6648"},{n:"3052",name:"Green Gray Md",h:"#889268"},{n:"3053",name:"Green Gray",h:"#9CA482"},
+  {n:"3064",name:"Desert Sand",h:"#C48E70"},{n:"3072",name:"Beaver Gray Vy Lt",h:"#E6E8E8"},{n:"3078",name:"Golden Yellow Vy Lt",h:"#FDF9CD"},{n:"3325",name:"Baby Blue Light",h:"#B8D2E6"},
+  {n:"3326",name:"Rose Light",h:"#FBADB4"},{n:"3328",name:"Salmon Dark",h:"#E36D6D"},{n:"3340",name:"Apricot Med",h:"#FF836F"},{n:"3341",name:"Apricot",h:"#FCAB98"},
+  {n:"3345",name:"Hunter Green Dk",h:"#1B5915"},{n:"3346",name:"Hunter Green",h:"#406A3A"},{n:"3347",name:"Yellow Green Med",h:"#71935C"},{n:"3348",name:"Yellow Green Lt",h:"#CCD9B1"},
+  {n:"3350",name:"Dusty Rose Ultra Dark",h:"#BC4365"},{n:"3354",name:"Dusty Rose Light",h:"#E4A6AC"},{n:"3362",name:"Pine Green Dk",h:"#5E6B47"},{n:"3363",name:"Pine Green Md",h:"#728256"},
+  {n:"3364",name:"Pine Green",h:"#83975F"},{n:"3371",name:"Black Brown",h:"#1E1108"},{n:"3607",name:"Plum Light",h:"#C54989"},{n:"3608",name:"Plum Very Light",h:"#EA9CC4"},
+  {n:"3609",name:"Plum Ultra Light",h:"#F4AED5"},{n:"3685",name:"Mauve Very Dark",h:"#881531"},{n:"3687",name:"Mauve",h:"#C96B70"},{n:"3688",name:"Mauve Medium",h:"#E7A9AC"},
+  {n:"3689",name:"Mauve Light",h:"#FBBFC2"},{n:"3705",name:"Melon Dark",h:"#FF7992"},{n:"3706",name:"Melon Medium",h:"#FFADBC"},{n:"3708",name:"Melon Light",h:"#FFCBD5"},
+  {n:"3712",name:"Salmon Medium",h:"#F18787"},{n:"3713",name:"Salmon Very Light",h:"#FFE2E2"},{n:"3716",name:"Dusty Rose Med Vy Lt",h:"#FFBDBD"},{n:"3721",name:"Shell Pink Dark",h:"#A14B51"},
+  {n:"3722",name:"Shell Pink Med",h:"#BC6C64"},{n:"3726",name:"Antique Mauve Dark",h:"#9B5B66"},{n:"3727",name:"Antique Mauve Light",h:"#DBA9B2"},{n:"3731",name:"Dusty Rose Very Dark",h:"#DA6783"},
+  {n:"3733",name:"Dusty Rose",h:"#E8879B"},{n:"3740",name:"Antique Violet Dark",h:"#785762"},{n:"3743",name:"Antique Violet Vy Lt",h:"#D7CBD3"},{n:"3746",name:"Blue Violet Dark",h:"#776B98"},
+  {n:"3747",name:"Blue Violet Vy Lt",h:"#D3D7ED"},{n:"3750",name:"Antique Blue Very Dk",h:"#384C5E"},{n:"3752",name:"Antique Blue Very Lt",h:"#C7D1DB"},{n:"3753",name:"Antique Blue Ult Vy Lt",h:"#DBE2E9"},
+  {n:"3755",name:"Baby Blue",h:"#93B4CE"},{n:"3756",name:"Baby Blue Ult Vy Lt",h:"#EEFCFC"},{n:"3760",name:"Wedgewood Med",h:"#3E85A2"},{n:"3761",name:"Sky Blue Light",h:"#ACD8E2"},
+  {n:"3765",name:"Peacock Blue Vy Dk",h:"#347F8C"},{n:"3766",name:"Peacock Blue Light",h:"#99CFD9"},{n:"3768",name:"Gray Green Dark",h:"#657F7F"},{n:"3770",name:"Tawny Vy Light",h:"#FFEEE3"},
+  {n:"3771",name:"Terra Cotta Ult Vy Lt",h:"#F4BBA9"},{n:"3772",name:"Desert Sand Vy Dk",h:"#A06C50"},{n:"3773",name:"Desert Sand Dark",h:"#B67552"},{n:"3774",name:"Desert Sand Vy Lt",h:"#F3E1D7"},
+  {n:"3776",name:"Mahogany Light",h:"#CF7939"},{n:"3777",name:"Terra Cotta Vy Dk",h:"#863022"},{n:"3778",name:"Terra Cotta Light",h:"#D98978"},{n:"3779",name:"Rosewood Ult Vy Lt",h:"#F8CAC8"},
+  {n:"3781",name:"Mocha Brown Dk",h:"#6B5743"},{n:"3782",name:"Mocha Brown Lt",h:"#D2BCA6"},{n:"3787",name:"Brown Gray Dark",h:"#625D50"},{n:"3790",name:"Beige Gray Ult Dk",h:"#7F6A55"},
+  {n:"3799",name:"Pewter Gray Vy Dk",h:"#424242"},{n:"3801",name:"Melon Very Dark",h:"#E74967"},{n:"3802",name:"Antique Mauve Vy Dk",h:"#714149"},{n:"3803",name:"Mauve Dark",h:"#AB3357"},
+  {n:"3804",name:"Cyclamen Pink Dark",h:"#E02876"},{n:"3805",name:"Cyclamen Pink",h:"#F3478B"},{n:"3806",name:"Cyclamen Pink Light",h:"#FF8CAE"},{n:"3807",name:"Cornflower Blue",h:"#60678C"},
+  {n:"3808",name:"Turquoise Ult Vy Dk",h:"#366970"},{n:"3809",name:"Turquoise Vy Dark",h:"#3F7C85"},{n:"3810",name:"Turquoise Dark",h:"#488E9A"},{n:"3811",name:"Turquoise Very Light",h:"#BCE3E6"},
+  {n:"3812",name:"Sea Green Vy Dk",h:"#2F8C84"},{n:"3813",name:"Blue Green Lt",h:"#B2D4BD"},{n:"3814",name:"Aquamarine",h:"#508B7D"},{n:"3815",name:"Celadon Green Dk",h:"#477759"},
+  {n:"3816",name:"Celadon Green",h:"#65A57D"},{n:"3817",name:"Celadon Green Lt",h:"#99C3AA"},{n:"3818",name:"Emerald Grn Ult V Dk",h:"#115A3B"},{n:"3819",name:"Moss Green Lt",h:"#E0E868"},
+  {n:"3820",name:"Straw Dark",h:"#DFB65F"},{n:"3821",name:"Straw",h:"#F3CE75"},{n:"3822",name:"Straw Light",h:"#F6DC98"},{n:"3823",name:"Yellow Ultra Pale",h:"#FFFDE3"},
+  {n:"3824",name:"Apricot Light",h:"#FECDC2"},{n:"3825",name:"Pumpkin Pale",h:"#FDBD96"},{n:"3826",name:"Golden Brown",h:"#AD7239"},{n:"3827",name:"Golden Brown Pale",h:"#F7BB77"},
+  {n:"3828",name:"Hazelnut Brown",h:"#B78B61"},{n:"3829",name:"Old Gold Vy Dark",h:"#A98204"},{n:"3830",name:"Terra Cotta",h:"#B95544"},{n:"3831",name:"Raspberry Dark",h:"#B32F48"},
+  {n:"3832",name:"Raspberry Medium",h:"#DB556E"},{n:"3833",name:"Raspberry Light",h:"#EA8699"},{n:"3834",name:"Grape Dark",h:"#72375D"},{n:"3835",name:"Grape Medium",h:"#946083"},
+  {n:"3836",name:"Grape Light",h:"#BA91AA"},{n:"3837",name:"Lavender Ultra Dark",h:"#6C3A6E"},{n:"3838",name:"Lavender Blue Dark",h:"#5C7294"},{n:"3839",name:"Lavender Blue Med",h:"#7B8EAB"},
+  {n:"3840",name:"Lavender Blue Light",h:"#B0C0DA"},{n:"3841",name:"Baby Blue Pale",h:"#CDDFED"},{n:"3842",name:"Wedgewood Vry Dk",h:"#32667C"},{n:"3843",name:"Electric Blue",h:"#14AAD0"},
+  {n:"3844",name:"Turquoise Bright Dark",h:"#12AEBA"},{n:"3845",name:"Turquoise Bright Med",h:"#04C4CA"},{n:"3846",name:"Turquoise Bright Light",h:"#06E3E6"},{n:"3847",name:"Teal Green Dark",h:"#347D75"},
+  {n:"3848",name:"Teal Green Med",h:"#559392"},{n:"3849",name:"Teal Green Light",h:"#52B3A4"},{n:"3850",name:"Green Bright Dk",h:"#378477"},{n:"3851",name:"Green Bright Lt",h:"#49B3A1"},
+  {n:"3852",name:"Straw Very Dark",h:"#CD9D37"},{n:"3853",name:"Autumn Gold Dk",h:"#F29746"},{n:"3854",name:"Autumn Gold Med",h:"#F2AF68"},{n:"3855",name:"Autumn Gold Lt",h:"#FAD396"},
+  {n:"3856",name:"Mahogany Ult Vy Lt",h:"#FFD3B5"},{n:"3857",name:"Rosewood Dark",h:"#68251A"},{n:"3858",name:"Rosewood Med",h:"#964A3F"},{n:"3859",name:"Rosewood Light",h:"#BA8B7C"},
+  {n:"3860",name:"Cocoa",h:"#7D5D57"},{n:"3861",name:"Cocoa Light",h:"#A68881"},{n:"3862",name:"Mocha Beige Dark",h:"#8A6E4E"},{n:"3863",name:"Mocha Beige Med",h:"#A4835C"},
+  {n:"3864",name:"Mocha Beige Light",h:"#CBB69C"},{n:"3865",name:"Winter White",h:"#F9F7F1"},{n:"3866",name:"Mocha Brn Ult Vy Lt",h:"#FAF6F0"},{n:"B5200",name:"Snow White",h:"#FFFFFF"},
+  {n:"ECRU",name:"Ecru",h:"#F0EADA"},{n:"BLANC",name:"White",h:"#FCFBF8"},
+];
+const COSMO=[
+  {n:"100",name:"",h:"#F4F4F4"},{n:"101",name:"",h:"#F9E9DE"},{n:"102",name:"",h:"#F8DFD7"},{n:"103A",name:"",h:"#F4C7C9"},{n:"104",name:"",h:"#EFA3AF"},{n:"105",name:"",h:"#E57F95"},
+  {n:"106",name:"",h:"#BE374C"},{n:"107",name:"",h:"#B32B41"},{n:"108",name:"",h:"#A82231"},{n:"110",name:"",h:"#FCFCF2"},{n:"111",name:"",h:"#F9E5E9"},{n:"112",name:"",h:"#F2A5CC"},
+  {n:"113",name:"",h:"#EE8ABF"},{n:"114",name:"",h:"#EB60A7"},{n:"115A",name:"",h:"#E63270"},{n:"116",name:"",h:"#D1DD8C"},{n:"117",name:"",h:"#AABE69"},{n:"118",name:"",h:"#769E45"},
+  {n:"119",name:"",h:"#557535"},{n:"120",name:"",h:"#416E36"},{n:"121",name:"",h:"#254628"},{n:"122",name:"",h:"#1C2C1B"},{n:"126A",name:"",h:"#E0A581"},{n:"127",name:"",h:"#DA8765"},
+  {n:"128",name:"",h:"#BE5F42"},{n:"129",name:"",h:"#9A412B"},{n:"130",name:"",h:"#6D3022"},{n:"131",name:"",h:"#58251F"},{n:"140",name:"",h:"#FAF3D5"},{n:"141",name:"",h:"#FBF6C7"},
+  {n:"142",name:"",h:"#FBED9A"},{n:"143",name:"",h:"#FAE376"},{n:"144A",name:"",h:"#F8C354"},{n:"145",name:"",h:"#F6A73A"},{n:"146",name:"",h:"#F27E36"},{n:"147",name:"",h:"#EE6B2F"},
+  {n:"151",name:"",h:"#CBC4B3"},{n:"152A",name:"",h:"#93918A"},{n:"153A",name:"",h:"#7A7A78"},{n:"154",name:"",h:"#696767"},{n:"155",name:"",h:"#45454B"},{n:"156",name:"",h:"#323133"},
+  {n:"162A",name:"",h:"#AFC6D4"},{n:"163",name:"",h:"#94B9D7"},{n:"164",name:"",h:"#6B93BF"},{n:"165A",name:"",h:"#5774A1"},{n:"166",name:"",h:"#365186"},{n:"167",name:"",h:"#2E4277"},
+  {n:"168",name:"",h:"#282B54"},{n:"169",name:"",h:"#1F203B"},{n:"171A",name:"",h:"#C1BCDB"},{n:"172A",name:"",h:"#A69DCE"},{n:"173",name:"",h:"#7C73B7"},{n:"174",name:"",h:"#655AA9"},
+  {n:"175",name:"",h:"#5F50A3"},{n:"176",name:"",h:"#544799"},{n:"185A",name:"",h:"#F5BD99"},{n:"186",name:"",h:"#DA6746"},{n:"187",name:"",h:"#C33F2C"},{n:"188",name:"",h:"#A43328"},
+  {n:"203",name:"",h:"#EE68A4"},{n:"204",name:"",h:"#ED579E"},{n:"205A",name:"",h:"#E8427A"},{n:"206",name:"",h:"#E02C4F"},{n:"211",name:"",h:"#E9F1EF"},{n:"214",name:"",h:"#4F70B3"},
+  {n:"216",name:"",h:"#2D3880"},{n:"218",name:"",h:"#2D2F5E"},{n:"220",name:"",h:"#F7DBE2"},{n:"221",name:"",h:"#F4C1D9"},{n:"222",name:"",h:"#DC80AC"},{n:"223",name:"",h:"#AA427B"},
+  {n:"224",name:"",h:"#91375B"},{n:"225",name:"",h:"#5A1526"},{n:"226",name:"",h:"#4F1426"},{n:"232",name:"",h:"#DAB6B7"},{n:"233",name:"",h:"#CEA7AE"},{n:"234",name:"",h:"#B08294"},
+  {n:"235",name:"",h:"#8F6672"},{n:"236",name:"",h:"#7C474F"},{n:"240",name:"",h:"#CF2448"},{n:"241A",name:"",h:"#B0202F"},{n:"242",name:"",h:"#921B36"},{n:"245",name:"",h:"#611921"},
+  {n:"246",name:"",h:"#6B1828"},{n:"247",name:"",h:"#351D21"},{n:"252",name:"",h:"#92C2CF"},{n:"253",name:"",h:"#598FB0"},{n:"254",name:"",h:"#35588F"},{n:"261",name:"",h:"#C6A2CB"},
+  {n:"262",name:"",h:"#A580BC"},{n:"263",name:"",h:"#6D4C93"},{n:"264",name:"",h:"#624283"},{n:"265",name:"",h:"#673C84"},{n:"266",name:"",h:"#553273"},{n:"269",name:"",h:"#C2DE70"},
+  {n:"270",name:"",h:"#AFD762"},{n:"271",name:"",h:"#8DC64E"},{n:"272",name:"",h:"#63AA44"},{n:"273",name:"",h:"#4D983E"},{n:"274",name:"",h:"#40873D"},{n:"275",name:"",h:"#377E3E"},
+  {n:"276",name:"",h:"#31743D"},{n:"281",name:"",h:"#D3B2D5"},{n:"282",name:"",h:"#A674BA"},{n:"283",name:"",h:"#7D4DA2"},{n:"284",name:"",h:"#723E94"},{n:"285",name:"",h:"#653488"},
+  {n:"286",name:"",h:"#4D2A68"},{n:"287A",name:"",h:"#482A67"},{n:"297",name:"",h:"#FAF5B0"},{n:"298",name:"",h:"#FBF183"},{n:"299",name:"",h:"#F6EF72"},{n:"300",name:"",h:"#FAEC4D"},
+  {n:"301",name:"",h:"#FBE339"},{n:"302",name:"",h:"#FAD532"},{n:"305",name:"",h:"#E2C8A3"},{n:"306",name:"",h:"#D4B592"},{n:"307",name:"",h:"#BC9769"},{n:"308",name:"",h:"#9B6438"},
+  {n:"309",name:"",h:"#855430"},{n:"310",name:"",h:"#573E2F"},{n:"311",name:"",h:"#4F4036"},{n:"312",name:"",h:"#2B2320"},{n:"316A",name:"",h:"#A9CBA8"},{n:"317",name:"",h:"#8FB98E"},
+  {n:"318",name:"",h:"#659971"},{n:"319",name:"",h:"#45754A"},{n:"320",name:"",h:"#2D5333"},{n:"323",name:"",h:"#CCE08B"},{n:"324",name:"",h:"#9CC448"},{n:"325A",name:"",h:"#7DAC3E"},
+  {n:"326",name:"",h:"#609C37"},{n:"327",name:"",h:"#4C8738"},{n:"328",name:"",h:"#3B6C36"},{n:"329",name:"",h:"#326132"},{n:"333",name:"",h:"#B3DDB3"},{n:"334",name:"",h:"#8BC895"},
+  {n:"335",name:"",h:"#5EAD6D"},{n:"336",name:"",h:"#56A265"},{n:"337",name:"",h:"#418751"},{n:"338",name:"",h:"#2A6337"},{n:"340",name:"",h:"#F5BD9A"},{n:"341",name:"",h:"#F6CCA7"},
+  {n:"342",name:"",h:"#E66A5A"},{n:"343",name:"",h:"#E24945"},{n:"344",name:"",h:"#CA2D32"},{n:"345",name:"",h:"#B6232A"},{n:"346",name:"",h:"#AE2229"},{n:"351",name:"",h:"#F8DFD8"},
+  {n:"352",name:"",h:"#F9D1DF"},{n:"353",name:"",h:"#F49DC7"},{n:"354",name:"",h:"#F287BC"},{n:"364",name:"",h:"#EAE9D6"},{n:"365",name:"",h:"#D3D2BB"},{n:"366",name:"",h:"#B2B194"},
+  {n:"367",name:"",h:"#89816B"},{n:"368",name:"",h:"#6C6454"},{n:"369",name:"",h:"#474333"},{n:"370",name:"",h:"#4A3E24"},{n:"371",name:"",h:"#9CC8C7"},{n:"372",name:"",h:"#90C6CF"},
+  {n:"373",name:"",h:"#77B8BE"},{n:"374",name:"",h:"#5A99A6"},{n:"375",name:"",h:"#3D748C"},{n:"376",name:"",h:"#2F5C83"},{n:"380",name:"",h:"#C9B5AC"},{n:"382",name:"",h:"#B69B91"},
+  {n:"383",name:"",h:"#927C6D"},{n:"384",name:"",h:"#765B51"},{n:"386",name:"",h:"#61483D"},{n:"402",name:"",h:"#F6C28B"},{n:"403",name:"",h:"#EF7447"},{n:"404",name:"",h:"#E6532D"},
+  {n:"405",name:"",h:"#DA4125"},{n:"406",name:"",h:"#C03627"},{n:"410A",name:"",h:"#DAEFF6"},{n:"411",name:"",h:"#BDE4F2"},{n:"412",name:"",h:"#9BD2EE"},{n:"413",name:"",h:"#4F8BCD"},
+  {n:"414A",name:"",h:"#3E79C1"},{n:"415A",name:"",h:"#3365B1"},{n:"423",name:"",h:"#DFB5A0"},{n:"424",name:"",h:"#D39D87"},{n:"425",name:"",h:"#A16D5B"},{n:"426",name:"",h:"#74473D"},
+  {n:"431",name:"",h:"#DAA5B7"},{n:"432A",name:"",h:"#D69FB7"},{n:"433",name:"",h:"#B16D8A"},{n:"434",name:"",h:"#8E4E61"},{n:"435",name:"",h:"#713B48"},{n:"437",name:"",h:"#651A28"},
+  {n:"440",name:"",h:"#F6A6A1"},{n:"441",name:"",h:"#F28981"},{n:"443",name:"",h:"#F06051"},{n:"444A",name:"",h:"#F05144"},{n:"445A",name:"",h:"#EC3F35"},{n:"461",name:"",h:"#E1A29A"},
+  {n:"462",name:"",h:"#D28984"},{n:"463",name:"",h:"#BF706B"},{n:"464",name:"",h:"#AE534F"},{n:"465",name:"",h:"#9E3F3D"},{n:"466",name:"",h:"#8F3234"},{n:"467",name:"",h:"#792224"},
+  {n:"472",name:"",h:"#C1AEAE"},{n:"473",name:"",h:"#B19FA2"},{n:"474",name:"",h:"#9B888D"},{n:"475",name:"",h:"#78646C"},{n:"476",name:"",h:"#614B58"},{n:"477",name:"",h:"#3B2E37"},
+  {n:"478",name:"",h:"#36313C"},{n:"480A",name:"",h:"#F4D6E3"},{n:"481A",name:"",h:"#EDB3D7"},{n:"482",name:"",h:"#D677B9"},{n:"483",name:"",h:"#BC4A9B"},{n:"484A",name:"",h:"#A63C8A"},
+  {n:"485A",name:"",h:"#9E2679"},{n:"486",name:"",h:"#802064"},{n:"499",name:"",h:"#F1A8D0"},{n:"500",name:"",h:"#F7F7F7"},{n:"501",name:"",h:"#ED8BC4"},{n:"502",name:"",h:"#E45BAB"},
+  {n:"503",name:"",h:"#D33B92"},{n:"504",name:"",h:"#D73386"},{n:"505A",name:"",h:"#CD2C71"},{n:"506",name:"",h:"#B91D58"},{n:"520",name:"",h:"#D9E1E5"},{n:"521A",name:"",h:"#CDE0E2"},
+  {n:"522",name:"",h:"#B1C9DE"},{n:"523",name:"",h:"#96B6DA"},{n:"525",name:"",h:"#5272B7"},{n:"526",name:"",h:"#4966B1"},{n:"533A",name:"",h:"#A6C49E"},{n:"534A",name:"",h:"#89A98C"},
+  {n:"535",name:"",h:"#608C77"},{n:"536A",name:"",h:"#466457"},{n:"537",name:"",h:"#214331"},{n:"538",name:"",h:"#26362C"},{n:"551",name:"",h:"#C9BCD8"},{n:"552",name:"",h:"#A89CCB"},
+  {n:"553",name:"",h:"#8E83B8"},{n:"554",name:"",h:"#7868A2"},{n:"555",name:"",h:"#564E88"},{n:"556",name:"",h:"#403B71"},{n:"557",name:"",h:"#352E56"},{n:"561",name:"",h:"#BEE5D0"},
+  {n:"562",name:"",h:"#A3D1C2"},{n:"563",name:"",h:"#84B9B3"},{n:"564",name:"",h:"#5C9494"},{n:"566",name:"",h:"#457A88"},{n:"572",name:"",h:"#E7CB98"},{n:"573",name:"",h:"#CDAA6D"},
+  {n:"574",name:"",h:"#C5984B"},{n:"575A",name:"",h:"#B28034"},{n:"576",name:"",h:"#8B6129"},{n:"577A",name:"",h:"#855B2A"},{n:"578",name:"",h:"#714324"},{n:"600",name:"",h:"#101113"},
+  {n:"601",name:"",h:"#2E2A31"},{n:"602",name:"",h:"#15192E"},{n:"603",name:"",h:"#201823"},{n:"629",name:"",h:"#CED78E"},{n:"630A",name:"",h:"#B8CC78"},{n:"631",name:"",h:"#8EAA4B"},
+  {n:"632",name:"",h:"#688E38"},{n:"633",name:"",h:"#517734"},{n:"634",name:"",h:"#435E2E"},{n:"635A",name:"",h:"#395029"},{n:"636",name:"",h:"#324324"},{n:"637",name:"",h:"#2F3F23"},
+  {n:"652",name:"",h:"#D296A3"},{n:"653",name:"",h:"#AA6074"},{n:"654",name:"",h:"#99465A"},{n:"655",name:"",h:"#75262F"},{n:"656",name:"",h:"#522022"},{n:"662",name:"",h:"#929EC5"},
+  {n:"663",name:"",h:"#646FAF"},{n:"664A",name:"",h:"#4F569C"},{n:"665",name:"",h:"#353A7D"},{n:"667A",name:"",h:"#2A2A53"},{n:"668",name:"",h:"#2E2F52"},{n:"669A",name:"",h:"#19192C"},
+  {n:"671",name:"",h:"#B2AF50"},{n:"673",name:"",h:"#858F37"},{n:"674",name:"",h:"#666D2D"},{n:"675A",name:"",h:"#5B5F2A"},{n:"676",name:"",h:"#4A4F2B"},{n:"681",name:"",h:"#DEE0B9"},
+  {n:"682",name:"",h:"#D2D5A1"},{n:"683",name:"",h:"#ABAE71"},{n:"684",name:"",h:"#818751"},{n:"685",name:"",h:"#5E6233"},{n:"686",name:"",h:"#4A4C26"},{n:"687",name:"",h:"#36381E"},
+  {n:"700",name:"",h:"#F6E47B"},{n:"701",name:"",h:"#F4D96A"},{n:"702",name:"",h:"#EBC546"},{n:"703",name:"",h:"#C68030"},{n:"704",name:"",h:"#C1782B"},{n:"705A",name:"",h:"#AE6F29"},
+  {n:"706",name:"",h:"#9A5D26"},{n:"711",name:"",h:"#D8D0BF"},{n:"712",name:"",h:"#C5BFB2"},{n:"713",name:"",h:"#AAA290"},{n:"714",name:"",h:"#908773"},{n:"715",name:"",h:"#786E5B"},
+  {n:"716",name:"",h:"#645B46"},{n:"717",name:"",h:"#615740"},{n:"718",name:"",h:"#443E2B"},{n:"730",name:"",h:"#C0D5DE"},{n:"731",name:"",h:"#98B3C8"},{n:"732",name:"",h:"#819DBB"},
+  {n:"733",name:"",h:"#5E7E9D"},{n:"734",name:"",h:"#465F80"},{n:"735",name:"",h:"#334768"},{n:"750A",name:"",h:"#F6AC89"},{n:"752",name:"",h:"#F5A080"},{n:"753",name:"",h:"#F1734D"},
+  {n:"754",name:"",h:"#ED5031"},{n:"757",name:"",h:"#EC392B"},{n:"758",name:"",h:"#E82D2A"},{n:"761",name:"",h:"#C0A9BC"},{n:"762",name:"",h:"#9C849D"},{n:"763",name:"",h:"#88698A"},
+  {n:"764",name:"",h:"#6C4D71"},{n:"765",name:"",h:"#4F3556"},{n:"766",name:"",h:"#422D47"},{n:"771",name:"",h:"#C8B060"},{n:"772",name:"",h:"#B89B46"},{n:"773",name:"",h:"#A38B35"},
+  {n:"774",name:"",h:"#876C2B"},{n:"775A",name:"",h:"#725727"},{n:"776",name:"",h:"#635025"},{n:"798",name:"",h:"#DD1F2C"},{n:"800",name:"",h:"#C02129"},{n:"811",name:"",h:"#E8ACBE"},
+  {n:"812",name:"",h:"#DD90A5"},{n:"813",name:"",h:"#CE6B8B"},{n:"814",name:"",h:"#BB4170"},{n:"815",name:"",h:"#A42F5B"},{n:"816A",name:"",h:"#9C2B54"},{n:"820",name:"",h:"#D7D27F"},
+  {n:"821",name:"",h:"#C0B65B"},{n:"822",name:"",h:"#A59A3E"},{n:"823",name:"",h:"#888133"},{n:"825",name:"",h:"#6F6B2C"},{n:"826",name:"",h:"#535227"},{n:"832",name:"",h:"#F8D2DD"},
+  {n:"833",name:"",h:"#F4A5BC"},{n:"834A",name:"",h:"#DB6684"},{n:"836",name:"",h:"#E95359"},{n:"838",name:"",h:"#E22C33"},{n:"842",name:"",h:"#9DD5B7"},{n:"843",name:"",h:"#73BE9C"},
+  {n:"844",name:"",h:"#54A181"},{n:"845",name:"",h:"#3C7E61"},{n:"846",name:"",h:"#306753"},{n:"851",name:"",h:"#F0B4AB"},{n:"852",name:"",h:"#FA978F"},{n:"853",name:"",h:"#DF726A"},
+  {n:"854",name:"",h:"#D65650"},{n:"855",name:"",h:"#BE3B39"},{n:"857",name:"",h:"#B82931"},{n:"858",name:"",h:"#A4232A"},{n:"890",name:"",h:"#ACA99C"},{n:"891",name:"",h:"#979283"},
+  {n:"892",name:"",h:"#858177"},{n:"893",name:"",h:"#6C6C66"},{n:"894",name:"",h:"#585550"},{n:"895",name:"",h:"#383633"},{n:"896",name:"",h:"#A9DBD0"},{n:"897",name:"",h:"#8BCDBD"},
+  {n:"898",name:"",h:"#61AD9C"},{n:"899",name:"",h:"#4D9D8B"},{n:"900",name:"",h:"#367B6E"},{n:"902",name:"",h:"#2C675D"},{n:"921",name:"",h:"#B9C8A3"},{n:"922",name:"",h:"#A7B88E"},
+  {n:"923",name:"",h:"#85996C"},{n:"924",name:"",h:"#697E52"},{n:"925",name:"",h:"#485930"},{n:"926",name:"",h:"#344223"},{n:"927",name:"",h:"#2D301B"},{n:"980",name:"",h:"#A7BFC0"},
+  {n:"981A",name:"",h:"#819FA2"},{n:"982",name:"",h:"#597E89"},{n:"983",name:"",h:"#3C5E6A"},{n:"984",name:"",h:"#2B4A53"},{n:"1000",name:"",h:"#E7D6B6"},{n:"1105",name:"",h:"#E06080"},
+  {n:"1241",name:"",h:"#AA163C"},{n:"1402",name:"",h:"#F5A966"},{n:"2001",name:"",h:"#E82670"},{n:"2002",name:"",h:"#B32370"},{n:"2003",name:"",h:"#7B235F"},{n:"2004",name:"",h:"#DAC654"},
+  {n:"2005",name:"",h:"#C6B244"},{n:"2006",name:"",h:"#C5AA33"},{n:"2007",name:"",h:"#D8E266"},{n:"2008",name:"",h:"#E3E73F"},{n:"2009",name:"",h:"#B4AE3F"},{n:"2010",name:"",h:"#CCDE52"},
+  {n:"2011",name:"",h:"#A9D150"},{n:"2012",name:"",h:"#75784D"},{n:"2013",name:"",h:"#636D34"},{n:"2014",name:"",h:"#505C2E"},{n:"2015",name:"",h:"#616E53"},{n:"2016",name:"",h:"#324227"},
+  {n:"2017",name:"",h:"#92B7B8"},{n:"2018",name:"",h:"#809BA5"},{n:"2019",name:"",h:"#3E637E"},{n:"2020",name:"",h:"#535656"},{n:"2021",name:"",h:"#AEE2E9"},{n:"2022",name:"",h:"#74CAE6"},
+  {n:"2023",name:"",h:"#469FC6"},{n:"2024",name:"",h:"#326683"},{n:"2025",name:"",h:"#7DABCB"},{n:"2026",name:"",h:"#5087B0"},{n:"2027",name:"",h:"#3A67B4"},{n:"2028",name:"",h:"#6C677C"},
+  {n:"2029",name:"",h:"#3E3A4E"},{n:"2030",name:"",h:"#281F24"},{n:"2031",name:"",h:"#AE6BA6"},{n:"2032",name:"",h:"#824877"},{n:"2033",name:"",h:"#6F3961"},{n:"2034",name:"",h:"#AC93A6"},
+  {n:"2035",name:"",h:"#5E485A"},{n:"2036",name:"",h:"#A59087"},{n:"2037",name:"",h:"#7C685F"},{n:"2038",name:"",h:"#605042"},{n:"2039",name:"",h:"#6D5D43"},{n:"2040",name:"",h:"#4F3D2E"},
+  {n:"2041",name:"",h:"#474639"},{n:"2105",name:"",h:"#DB4F6E"},{n:"2111",name:"",h:"#F5C2DA"},{n:"2114",name:"",h:"#E93F82"},{n:"2115",name:"",h:"#D9225D"},{n:"2117",name:"",h:"#99B060"},
+  {n:"2118",name:"",h:"#6B8F42"},{n:"2120",name:"",h:"#325930"},{n:"2129",name:"",h:"#95432C"},{n:"2151",name:"",h:"#B2ADA3"},{n:"2154",name:"",h:"#545358"},{n:"2167",name:"",h:"#363D64"},
+  {n:"2172",name:"",h:"#8E87C2"},{n:"2185",name:"",h:"#ECA189"},{n:"2186",name:"",h:"#CB5435"},{n:"2211",name:"",h:"#D8E9DF"},{n:"2212",name:"",h:"#7BA2D2"},{n:"2214",name:"",h:"#3B54A1"},
+  {n:"2221",name:"",h:"#E79DB9"},{n:"2222",name:"",h:"#C96899"},{n:"2223",name:"",h:"#9E3061"},{n:"2224",name:"",h:"#841F4A"},{n:"2241",name:"",h:"#89212B"},{n:"2242",name:"",h:"#B62D53"},
+  {n:"2245",name:"",h:"#711331"},{n:"2251",name:"",h:"#B9DCDD"},{n:"2253",name:"",h:"#5281A9"},{n:"2262",name:"",h:"#8961A8"},{n:"2281",name:"",h:"#C19BC9"},{n:"2297",name:"",h:"#FAF585"},
+  {n:"2299",name:"",h:"#F6F054"},{n:"2301",name:"",h:"#FBD821"},{n:"2307",name:"",h:"#A47348"},{n:"2310",name:"",h:"#76422B"},{n:"2311",name:"",h:"#40271E"},{n:"2317",name:"",h:"#79AB7F"},
+  {n:"2319",name:"",h:"#376541"},{n:"2323",name:"",h:"#BFD771"},{n:"2341",name:"",h:"#EC916F"},{n:"2343",name:"",h:"#DD3B3C"},{n:"2402",name:"",h:"#F29561"},{n:"2412",name:"",h:"#6CAFE0"},
+  {n:"2424",name:"",h:"#BD856F"},{n:"2480",name:"",h:"#EFB7D9"},{n:"2500",name:"",h:"#F5F5F5"},{n:"2535",name:"",h:"#588873"},{n:"2536A",name:"",h:"#2F5A44"},{n:"2563",name:"",h:"#71ADA8"},
+  {n:"2573",name:"",h:"#D5A354"},{n:"2631",name:"",h:"#7A9F3D"},{n:"2652",name:"",h:"#CC7F91"},{n:"2662",name:"",h:"#7A85B7"},{n:"2664",name:"",h:"#3C438A"},{n:"2702",name:"",h:"#D89B31"},
+  {n:"2762",name:"",h:"#8E7193"},{n:"2835",name:"",h:"#D34668"},{n:"2924",name:"",h:"#597037"},{n:"2981",name:"",h:"#75989D"},{n:"3115",name:"",h:"#C81B45"},{n:"3185",name:"",h:"#E88F75"},
+  {n:"3297",name:"",h:"#FBF8A4"},{n:"3299",name:"",h:"#F8E524"},{n:"3311",name:"",h:"#6C372A"},{n:"3651",name:"",h:"#EBC7C7"},{n:"4300",name:"",h:"#71202B"},{n:"4311",name:"",h:"#422520"},
+  {n:"4792",name:"",h:"#31336D"},{n:"4905",name:"",h:"#284D2C"},
+];
+const OLYMPUS=[
+  {n:"800",name:"ホワイト",h:"#FFFFFF"},{n:"801",name:"生成り",h:"#F5F0E0"},
+  {n:"802",name:"クリーム",h:"#FFF8DC"},{n:"803",name:"ペールクリーム",h:"#FFFACD"},
+  {n:"500",name:"ライトクリーム",h:"#FFFFF0"},{n:"501",name:"ペールイエロー",h:"#FFFDE7"},
+  {n:"540",name:"ライトイエロー",h:"#FFF59D"},{n:"541",name:"イエロー",h:"#FFEE58"},
+  {n:"542",name:"ゴールドイエロー",h:"#FFD600"},{n:"543",name:"ディープイエロー",h:"#FFC107"},
+  {n:"544",name:"マリーゴールド",h:"#FF8F00"},{n:"545",name:"オレンジ",h:"#FF6F00"},
+  {n:"546",name:"ダークオレンジ",h:"#E65100"},{n:"547",name:"バーントオレンジ",h:"#BF360C"},
+  {n:"548",name:"アンバー",h:"#FF8F00"},{n:"549",name:"ゴールデンロッド",h:"#DAA520"},
+  {n:"560",name:"ゴールド",h:"#FFD700"},{n:"561",name:"ライトゴールド",h:"#FFE57F"},
+  {n:"562",name:"アンティークゴールド",h:"#CFB53B"},{n:"563",name:"ダークゴールド",h:"#B8860B"},
+  {n:"1001",name:"ライトサーモン",h:"#FFCBA4"},{n:"1002",name:"サーモンピンク",h:"#FA8072"},
+  {n:"1003",name:"サーモン",h:"#FF6347"},{n:"1004",name:"コーラル",h:"#FF4500"},
+  {n:"1005",name:"ダークサーモン",h:"#E9967A"},{n:"1006",name:"テラコッタ",h:"#E2725B"},
+  {n:"1011",name:"ペールピンク",h:"#FFD1DC"},{n:"1012",name:"ベビーピンク",h:"#FFB6C1"},
+  {n:"1021",name:"ライトピンク",h:"#FFB6C1"},{n:"1022",name:"ピンク",h:"#FF99AA"},
+  {n:"1023",name:"ミディアムピンク",h:"#FF69B4"},{n:"1024",name:"ホットピンク",h:"#FF1493"},
+  {n:"1025",name:"ディープピンク",h:"#C71585"},{n:"1026",name:"ローズ",h:"#FF007F"},
+  {n:"1027",name:"ダークローズ",h:"#C2185B"},{n:"1028",name:"フューシャ",h:"#E91E63"},
+  {n:"1031",name:"ライトレッド",h:"#FF6666"},{n:"1032",name:"レッド",h:"#FF0000"},
+  {n:"1033",name:"クリムゾン",h:"#DC143C"},{n:"1034",name:"スカーレット",h:"#FF2400"},
+  {n:"1035",name:"バーガンディ",h:"#800020"},{n:"1036",name:"マルーン",h:"#800000"},
+  {n:"1037",name:"ダークレッド",h:"#8B0000"},{n:"1038",name:"ワインレッド",h:"#722F37"},
+  {n:"2011",name:"ライトラベンダー",h:"#E6E6FA"},{n:"2012",name:"ラベンダー",h:"#967BB6"},
+  {n:"2013",name:"バイオレット",h:"#8B00FF"},{n:"2014",name:"ダークバイオレット",h:"#7B00EE"},
+  {n:"2021",name:"ライトパープル",h:"#DDA0DD"},{n:"2022",name:"パープル",h:"#800080"},
+  {n:"2023",name:"ダークパープル",h:"#4B0082"},{n:"2024",name:"インディゴ",h:"#3F0096"},
+  {n:"2031",name:"ライトモーブ",h:"#D8BFD8"},{n:"2032",name:"モーブ",h:"#C8A2C8"},
+  {n:"2033",name:"オーキッド",h:"#DA70D6"},{n:"2034",name:"マゼンタ",h:"#FF00FF"},
+  {n:"3001",name:"ライトスカイブルー",h:"#E0F0FF"},{n:"3002",name:"スカイブルー",h:"#87CEEB"},
+  {n:"3003",name:"コーンフラワーブルー",h:"#6495ED"},{n:"3004",name:"ブルー",h:"#0000FF"},
+  {n:"3005",name:"ロイヤルブルー",h:"#4169E1"},{n:"3006",name:"ネイビー",h:"#000080"},
+  {n:"3007",name:"ミッドナイトブルー",h:"#191970"},{n:"3008",name:"ダークネイビー",h:"#0D0D5C"},
+  {n:"3011",name:"ライトベビーブルー",h:"#B0E0E6"},{n:"3012",name:"スティールブルー",h:"#4682B4"},
+  {n:"3013",name:"スレートブルー",h:"#6A5ACD"},{n:"3014",name:"セルリアン",h:"#2A52BE"},
+  {n:"3021",name:"ターコイズ",h:"#40E0D0"},{n:"3022",name:"シアン",h:"#00FFFF"},
+  {n:"3023",name:"ミッドナイトターコイズ",h:"#008080"},{n:"3024",name:"ダークターコイズ",h:"#00CED1"},
+  {n:"3031",name:"アクア",h:"#00CED1"},{n:"3032",name:"ライトアクア",h:"#7FFFD4"},
+  {n:"3033",name:"ピーコックブルー",h:"#006994"},{n:"3034",name:"オーシャンブルー",h:"#0077BE"},
+  {n:"4001",name:"ライトグリーン",h:"#90EE90"},{n:"4002",name:"グリーン",h:"#008000"},
+  {n:"4003",name:"フォレストグリーン",h:"#228B22"},{n:"4004",name:"ダークグリーン",h:"#006400"},
+  {n:"4005",name:"ハンターグリーン",h:"#355E3B"},{n:"4006",name:"エバーグリーン",h:"#1F5C2E"},
+  {n:"4011",name:"ミントグリーン",h:"#98FF98"},{n:"4012",name:"エメラルド",h:"#50C878"},
+  {n:"4013",name:"ジェード",h:"#00A86B"},{n:"4014",name:"ケリーグリーン",h:"#4CBB17"},
+  {n:"4021",name:"オリーブグリーン",h:"#808000"},{n:"4022",name:"ダークオリーブ",h:"#556B2F"},
+  {n:"4023",name:"カーキグリーン",h:"#6B8E23"},{n:"4024",name:"モスグリーン",h:"#4A5240"},
+  {n:"4031",name:"セージグリーン",h:"#BCB88A"},{n:"4032",name:"フェンネルグリーン",h:"#8A9A5B"},
+  {n:"4033",name:"ライムグリーン",h:"#32CD32"},{n:"4034",name:"イエローグリーン",h:"#9ACD32"},
+  {n:"5001",name:"ライトブラウン",h:"#D2B48C"},{n:"5002",name:"タン",h:"#C4A882"},
+  {n:"5003",name:"ブラウン",h:"#A52A2A"},{n:"5004",name:"ダークブラウン",h:"#654321"},
+  {n:"5005",name:"チョコレート",h:"#3D1C02"},{n:"5006",name:"エスプレッソ",h:"#2C1503"},
+  {n:"5011",name:"バーントオレンジ",h:"#CC5500"},{n:"5012",name:"チョコレートブラウン",h:"#7B3F00"},
+  {n:"5013",name:"マホガニー",h:"#C04000"},{n:"5014",name:"シエナ",h:"#A0522D"},
+  {n:"5021",name:"ベージュ",h:"#F5F5DC"},{n:"5022",name:"サンドベージュ",h:"#DEB887"},
+  {n:"5023",name:"カーキ",h:"#BDB76B"},{n:"5024",name:"タープ",h:"#A8956A"},
+  {n:"5031",name:"テラコッタ",h:"#E2725B"},{n:"5032",name:"シエナブラウン",h:"#A0522D"},
+  {n:"5033",name:"バーントシエナ",h:"#8B4513"},{n:"5034",name:"ラスト",h:"#B7410E"},
+  {n:"5041",name:"ゴールド",h:"#FFD700"},{n:"5042",name:"ダークゴールド",h:"#DAA520"},
+  {n:"5043",name:"アンティークゴールド",h:"#CFB53B"},{n:"5044",name:"ブロンズ",h:"#CD7F32"},
+  {n:"6001",name:"ライトグレー",h:"#D3D3D3"},{n:"6002",name:"グレー",h:"#808080"},
+  {n:"6003",name:"ダークグレー",h:"#696969"},{n:"6004",name:"チャコール",h:"#36454F"},
+  {n:"6005",name:"スレート",h:"#708090"},{n:"6006",name:"スチールグレー",h:"#4F666A"},
+  {n:"6011",name:"シルバー",h:"#C0C0C0"},{n:"6012",name:"ライトシルバー",h:"#D8D8D8"},
+  {n:"6021",name:"ブラック",h:"#000000"},{n:"6022",name:"オフブラック",h:"#1A1A1A"},
+];
+const MATCH_BRANDS={dmc:DMC,cosmo:COSMO,olympus:OLYMPUS};
 
-  startupClose.addEventListener('click', () => {
-    startupNotice.classList.add('hidden');
+// ── ブランド名の正規化（在庫との照合用）──
+const BRAND_NORM={dmc:["dmc","DMC"],cosmo:["cosmo","コスモ","COSMO"],olympus:["olympus","オリムパス","OLYMPUS"]};
+
+// ══════════════════════════════════════════════
+//  色処理ユーティリティ
+// ══════════════════════════════════════════════
+function rgbToLab(r,g,b){
+  let R=r/255,G=g/255,B=b/255;
+  R=R>0.04045?Math.pow((R+0.055)/1.055,2.4):R/12.92;
+  G=G>0.04045?Math.pow((G+0.055)/1.055,2.4):G/12.92;
+  B=B>0.04045?Math.pow((B+0.055)/1.055,2.4):B/12.92;
+  let X=(R*0.4124+G*0.3576+B*0.1805)/0.95047;
+  let Y=(R*0.2126+G*0.7152+B*0.0722)/1.00000;
+  let Z=(R*0.0193+G*0.1192+B*0.9505)/1.08883;
+  const f=v=>v>0.008856?Math.pow(v,1/3):7.787*v+16/116;
+  return[116*f(Y)-16,500*(f(X)-f(Y)),200*(f(Y)-f(Z))];
+}
+function deltaE(a,b){return Math.sqrt((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2);}
+function hexToRgb(hex){const n=parseInt(hex.replace('#',''),16);return[(n>>16)&255,(n>>8)&255,n&255];}
+function toHex(r,g,b){return'#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');}
+function findBest(r,g,b,db){
+  const lab=rgbToLab(r,g,b);let best=db[0],bd=Infinity;
+  for(const d of db){const[dr,dg,db2]=hexToRgb(d.h);const delta=deltaE(lab,rgbToLab(dr,dg,db2));if(delta<bd){bd=delta;best=d;}}
+  return{thread:best,delta:bd};
+}
+function kMeansWithCount(pixels,k,iters=15){
+  let centers=[];const used=new Set();
+  while(centers.length<k){const i=Math.floor(Math.random()*pixels.length);if(!used.has(i)){used.add(i);centers.push([...pixels[i]]);}}
+  let assign=new Array(pixels.length).fill(0);
+  for(let it=0;it<iters;it++){
+    const cl=Array.from({length:k},()=>[]);
+    for(let pi=0;pi<pixels.length;pi++){const px=pixels[pi];let best=0,bd=Infinity;for(let i=0;i<k;i++){const d=(px[0]-centers[i][0])**2+(px[1]-centers[i][1])**2+(px[2]-centers[i][2])**2;if(d<bd){bd=d;best=i;}}cl[best].push(px);assign[pi]=best;}
+    centers=cl.map((c,i)=>c.length?[Math.round(c.reduce((s,p)=>s+p[0],0)/c.length),Math.round(c.reduce((s,p)=>s+p[1],0)/c.length),Math.round(c.reduce((s,p)=>s+p[2],0)/c.length)]:centers[i]);
+  }
+  const counts=new Array(k).fill(0);for(const a of assign)counts[a]++;
+  return centers.map((c,i)=>({rgb:c,count:counts[i],pct:counts[i]/pixels.length*100}));
+}
+
+// ══════════════════════════════════════════════
+//  在庫照合ヘルパー
+// ══════════════════════════════════════════════
+function getInventory(){
+  try{return JSON.parse(localStorage.getItem('emb-inventory')||'[]');}catch{return[];}
+}
+// brand='dmc'/'cosmo'/'olympus', num=色番号文字列 → 在庫にあるか
+function hasStock(brand,num){
+  const inv=getInventory();
+  const aliases=BRAND_NORM[brand]||[brand];
+  return inv.some(t=>aliases.some(a=>t.brand.toLowerCase()===a.toLowerCase())
+    && t.colorNumber.trim().toLowerCase()===String(num).trim().toLowerCase());
+}
+
+// ══════════════════════════════════════════════
+//  楽天アフィリエイトリンク
+// ══════════════════════════════════════════════
+const RAKUTEN_AFFILIATE_ID='06dd2d3b.cb3bd32c.06dd2d3c.02a8cf38';
+const BRAND_SEARCH_LABEL={dmc:'DMC 25番 刺繍糸',cosmo:'コスモ 25番 刺繍糸',olympus:'オリムパス 25番 刺繍糸'};
+// brand='dmc'/'cosmo'/'olympus', num=色番号, name=色名 → 楽天市場の検索結果へのアフィリエイトリンク
+function buildRakutenLink(brand,num,name){
+  const label=BRAND_SEARCH_LABEL[brand]||brand;
+  const keyword=`${label} ${num}`;
+  const searchUrl='https://search.rakuten.co.jp/search/mall/'+encodeURIComponent(keyword)+'/';
+  return `https://hb.afl.rakuten.co.jp/hgc/${RAKUTEN_AFFILIATE_ID}/?pc=${encodeURIComponent(searchUrl)}`;
+}
+
+// ══════════════════════════════════════════════
+//  タブ切り替え
+// ══════════════════════════════════════════════
+document.querySelectorAll('.app-tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    document.querySelectorAll('.app-tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('page-'+tab.dataset.tab).classList.add('active');
+    if(tab.dataset.tab==='inventory')renderInventory();
   });
+});
 
-  const MIN_SCALE = 0.1;
-  const MAX_SCALE = 4.0;
+// ══════════════════════════════════════════════
+//  ビューポート・ズーム・パン
+// ══════════════════════════════════════════════
+const viewport=document.getElementById('viewport');
+const viewCanvas=document.getElementById('view-canvas');
+const vCtx=viewCanvas.getContext('2d');
+const selOverlay=document.getElementById('sel-overlay');
+const dimRect=document.getElementById('dim-rect');
+const maskHole=document.getElementById('mask-hole');
+const selRect=document.getElementById('sel-rect');
+const dragRect=document.getElementById('drag-rect');
+let img=null,zoom=1,offsetX=0,offsetY=0,selection=null,mode='pan';
+let panStart=null,panOffset0=null,selDragStart=null,pinchDist0=null,pinchZoom0=null;
 
-  let state = {
-    scale: 1,
-    x: 0,
-    y: 0,
-    naturalW: 0,
-    naturalH: 0,
-    locked: false
+function clampOffset(){
+  const vpW=viewport.clientWidth,vpH=viewport.clientHeight;
+  const iW=img.width*zoom,iH=img.height*zoom;
+  if(iW<=vpW)offsetX=(vpW-iW)/2;else offsetX=Math.min(0,Math.max(vpW-iW,offsetX));
+  if(iH<=vpH)offsetY=(vpH-iH)/2;else offsetY=Math.min(0,Math.max(vpH-iH,offsetY));
+}
+function applyZoom(nz,px,py){
+  nz=Math.max(0.1,Math.min(20,nz));
+  const r=nz/zoom;offsetX=px-(px-offsetX)*r;offsetY=py-(py-offsetY)*r;zoom=nz;clampOffset();render();
+}
+function fitImage(){
+  if(!img)return;
+  const vpW=viewport.clientWidth,vpH=viewport.clientHeight;
+  zoom=Math.min(vpW/img.width,vpH/img.height,1);
+  offsetX=(vpW-img.width*zoom)/2;offsetY=(vpH-img.height*zoom)/2;render();
+}
+function render(){
+  if(!img)return;
+  const vpW=viewport.clientWidth,vpH=viewport.clientHeight;
+  viewCanvas.width=vpW;viewCanvas.height=vpH;
+  selOverlay.setAttribute('width',vpW);selOverlay.setAttribute('height',vpH);
+  document.getElementById('mask-bg').setAttribute('width',vpW);
+  document.getElementById('mask-bg').setAttribute('height',vpH);
+  vCtx.clearRect(0,0,vpW,vpH);vCtx.imageSmoothingEnabled=zoom<2;
+  vCtx.drawImage(img,offsetX,offsetY,img.width*zoom,img.height*zoom);
+  document.getElementById('zoom-label').textContent=Math.round(zoom*100)+'%';
+  if(selection){
+    const sx=selection.x*zoom+offsetX,sy=selection.y*zoom+offsetY,sw=selection.w*zoom,sh=selection.h*zoom;
+    maskHole.setAttribute('x',sx);maskHole.setAttribute('y',sy);maskHole.setAttribute('width',sw);maskHole.setAttribute('height',sh);
+    dimRect.setAttribute('visibility','visible');
+    selRect.setAttribute('x',sx);selRect.setAttribute('y',sy);selRect.setAttribute('width',sw);selRect.setAttribute('height',sh);selRect.setAttribute('visibility','visible');
+  }else{dimRect.setAttribute('visibility','hidden');selRect.setAttribute('visibility','hidden');}
+}
+function vpToImg(vx,vy){return{x:(vx-offsetX)/zoom,y:(vy-offsetY)/zoom};}
+function evPos(e,idx=0){const r=viewport.getBoundingClientRect();const s=e.touches?e.touches[idx]:e;return{x:s.clientX-r.left,y:s.clientY-r.top};}
+
+viewport.addEventListener('wheel',e=>{e.preventDefault();const p=evPos(e);applyZoom(zoom*(e.deltaY>0?0.85:1/0.85),p.x,p.y);},{passive:false});
+viewport.addEventListener('mousedown',e=>{e.preventDefault();const p=evPos(e);if(mode==='pan'){panStart=p;panOffset0={x:offsetX,y:offsetY};}else{const ip=vpToImg(p.x,p.y);selDragStart={vx:p.x,vy:p.y,ix:ip.x,iy:ip.y};}});
+window.addEventListener('mousemove',e=>{
+  if(mode==='pan'&&panStart){const p=evPos(e);offsetX=panOffset0.x+(p.x-panStart.x);offsetY=panOffset0.y+(p.y-panStart.y);clampOffset();render();}
+  else if(mode==='sel'&&selDragStart){const p=evPos(e);dragRect.setAttribute('x',Math.min(selDragStart.vx,p.x));dragRect.setAttribute('y',Math.min(selDragStart.vy,p.y));dragRect.setAttribute('width',Math.abs(p.x-selDragStart.vx));dragRect.setAttribute('height',Math.abs(p.y-selDragStart.vy));dragRect.setAttribute('visibility','visible');}
+});
+window.addEventListener('mouseup',e=>{
+  if(mode==='pan'&&panStart){panStart=null;}
+  else if(mode==='sel'&&selDragStart){
+    const p=evPos(e);const ip=vpToImg(p.x,p.y);
+    const ix=Math.min(selDragStart.ix,ip.x),iy=Math.min(selDragStart.iy,ip.y);
+    const iw=Math.abs(ip.x-selDragStart.ix),ih=Math.abs(ip.y-selDragStart.iy);
+    dragRect.setAttribute('visibility','hidden');selDragStart=null;
+    if(iw<2||ih<2)return;
+    selection={x:Math.max(0,ix),y:Math.max(0,iy),w:Math.min(iw,img.width-Math.max(0,ix)),h:Math.min(ih,img.height-Math.max(0,iy))};
+    document.getElementById('btn-clear-sel').style.display='inline-block';updateHint();render();
+  }
+});
+viewport.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  if(e.touches.length===2){panStart=null;selDragStart=null;pinchDist0=Math.hypot(evPos(e,0).x-evPos(e,1).x,evPos(e,0).y-evPos(e,1).y);pinchZoom0=zoom;}
+  else{const p=evPos(e);pinchDist0=null;if(mode==='pan'){panStart=p;panOffset0={x:offsetX,y:offsetY};}else{const ip=vpToImg(p.x,p.y);selDragStart={vx:p.x,vy:p.y,ix:ip.x,iy:ip.y};}}
+},{passive:false});
+viewport.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  if(e.touches.length===2&&pinchDist0!==null){
+    const d=Math.hypot(evPos(e,0).x-evPos(e,1).x,evPos(e,0).y-evPos(e,1).y);
+    const cx=(evPos(e,0).x+evPos(e,1).x)/2,cy=(evPos(e,0).y+evPos(e,1).y)/2;
+    applyZoom(pinchZoom0*(d/pinchDist0),cx,cy);
+  }else if(e.touches.length===1){
+    const p=evPos(e);
+    if(mode==='pan'&&panStart){offsetX=panOffset0.x+(p.x-panStart.x);offsetY=panOffset0.y+(p.y-panStart.y);clampOffset();render();}
+    else if(mode==='sel'&&selDragStart){dragRect.setAttribute('x',Math.min(selDragStart.vx,p.x));dragRect.setAttribute('y',Math.min(selDragStart.vy,p.y));dragRect.setAttribute('width',Math.abs(p.x-selDragStart.vx));dragRect.setAttribute('height',Math.abs(p.y-selDragStart.vy));dragRect.setAttribute('visibility','visible');}
+  }
+},{passive:false});
+viewport.addEventListener('touchend',e=>{
+  e.preventDefault();if(pinchDist0!==null){pinchDist0=null;return;}
+  if(mode==='sel'&&selDragStart){
+    const t=e.changedTouches[0];const r=viewport.getBoundingClientRect();
+    const vp={x:t.clientX-r.left,y:t.clientY-r.top};const ip=vpToImg(vp.x,vp.y);
+    const ix=Math.min(selDragStart.ix,ip.x),iy=Math.min(selDragStart.iy,ip.y);
+    const iw=Math.abs(ip.x-selDragStart.ix),ih=Math.abs(ip.y-selDragStart.iy);
+    dragRect.setAttribute('visibility','hidden');selDragStart=null;
+    if(iw<2||ih<2)return;
+    selection={x:Math.max(0,ix),y:Math.max(0,iy),w:Math.min(iw,img.width-Math.max(0,ix)),h:Math.min(ih,img.height-Math.max(0,iy))};
+    document.getElementById('btn-clear-sel').style.display='inline-block';updateHint();render();
+  }
+  panStart=null;
+},{passive:false});
+
+function updateHint(){
+  const bar=document.getElementById('hint-bar');
+  if(mode==='pan')bar.innerHTML='<b>移動モード</b>：ドラッグでパン ／ ホイール・ピンチでズーム';
+  else bar.innerHTML=selection?'<b>選択範囲</b>あり ─ 再ドラッグで描き直せます':'<b>範囲選択モード</b>：ドラッグで選択範囲を描きます';
+}
+function updateCursor(){viewport.style.cursor=mode==='pan'?'grab':'crosshair';}
+document.getElementById('btn-mode-pan').addEventListener('click',()=>{mode='pan';document.getElementById('btn-mode-pan').classList.add('active');document.getElementById('btn-mode-sel').classList.remove('active');updateCursor();updateHint();});
+document.getElementById('btn-mode-sel').addEventListener('click',()=>{mode='sel';document.getElementById('btn-mode-sel').classList.add('active');document.getElementById('btn-mode-pan').classList.remove('active');updateCursor();updateHint();});
+document.getElementById('btn-clear-sel').addEventListener('click',()=>{selection=null;document.getElementById('btn-clear-sel').style.display='none';updateHint();render();});
+document.getElementById('btn-zoom-in').addEventListener('click',()=>applyZoom(zoom*1.5,viewport.clientWidth/2,viewport.clientHeight/2));
+document.getElementById('btn-zoom-out').addEventListener('click',()=>applyZoom(zoom/1.5,viewport.clientWidth/2,viewport.clientHeight/2));
+document.getElementById('btn-zoom-fit').addEventListener('click',fitImage);
+window.addEventListener('resize',()=>{if(img)render();});
+
+// ── ファイル読み込み ──
+document.getElementById('upload-zone').addEventListener('dragover',e=>{e.preventDefault();document.getElementById('upload-zone').classList.add('drag-over');});
+document.getElementById('upload-zone').addEventListener('dragleave',()=>document.getElementById('upload-zone').classList.remove('drag-over'));
+document.getElementById('upload-zone').addEventListener('drop',e=>{e.preventDefault();document.getElementById('upload-zone').classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f&&f.type.startsWith('image/'))loadFile(f);});
+document.getElementById('file-input').addEventListener('change',()=>{if(document.getElementById('file-input').files[0])loadFile(document.getElementById('file-input').files[0]);});
+function loadFile(file){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const image=new Image();
+    image.onload=()=>{img=image;selection=null;document.getElementById('btn-clear-sel').style.display='none';document.getElementById('preview-section').style.display='block';document.getElementById('results-section').style.display='none';requestAnimationFrame(()=>{fitImage();updateHint();});};
+    image.src=e.target.result;
   };
+  reader.readAsDataURL(file);
+}
 
-  function applyTransform(){
-    imgWrap.style.transform =
-      `translate(-50%, -50%) translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
+// ── ブランドタブ ──
+document.querySelectorAll('.brand-tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    document.querySelectorAll('.brand-tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.brand-panel').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-'+tab.dataset.brand).classList.add('active');
+  });
+});
+
+// ── 色抽出 ──
+const offCanvas=document.getElementById('off-canvas');
+const offCtx=offCanvas.getContext('2d');
+
+function buildMatchCard(rank,extractedRgb,thread,delta,pct,isBest,brand){
+  const hex=toHex(...extractedRgb);
+  const bc=delta<10?'delta-great':delta<20?'delta-good':'delta-fair';
+  const bt=delta<10?'高精度':delta<20?'良好':'近似';
+  const barH=Math.min(Math.round(pct),100);
+  const crown=isBest?'<span class="crown-badge" title="このメーカーが最も近い色">👑</span>':'';
+  const inStock=hasStock(brand,thread.n);
+  const check=inStock?'<span class="check-badge" title="在庫あり">✅</span>':'';
+  const stockClass=inStock?' in-stock':'';
+  const buyLink=inStock?'':`<a class="buy-link" href="${buildRakutenLink(brand,thread.n,thread.name)}" target="_blank" rel="noopener sponsored">🛒 楽天で購入</a>`;
+  return `<div class="color-row${isBest?' best-brand':''}${stockClass}">
+    <div class="row-rank">${rank}</div>
+    <div class="row-swatches">
+      <div class="swatch-h" style="background:${hex}"><span class="swatch-label">抽出</span></div>
+      <div class="swatch-h" style="background:${thread.h}"><span class="swatch-label">糸</span></div>
+    </div>
+    <div class="row-info">
+      <div class="thread-num">${thread.n} ${crown}${check}</div>
+      <div class="thread-name">${thread.name}</div>
+      <div class="hex-pair"><span>${hex.toUpperCase()}</span><span>→</span><span>${thread.h.toUpperCase()}</span></div>
+      <span class="delta-badge ${bc}">${bt} ΔE ${delta.toFixed(1)}</span>
+      ${buyLink}
+    </div>
+    <div class="row-bar">
+      <div class="bar-track"><div class="bar-fill" style="height:${barH}%"></div></div>
+      <div class="bar-pct">${pct.toFixed(1)}%</div>
+    </div>
+  </div>`;
+}
+
+let selectedColorCount = 8;
+document.querySelectorAll('.count-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.count-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedColorCount = parseInt(btn.dataset.count);
+  });
+});
+
+document.getElementById('btn-extract').addEventListener('click',()=>{
+  if(!img)return;
+  document.getElementById('btn-extract').disabled=true;
+  document.getElementById('loading').style.display='block';
+  document.getElementById('results-section').style.display='none';
+  setTimeout(()=>{
+    const k=selectedColorCount;
+    let sx=0,sy=0,sw=img.width,sh=img.height;
+    if(selection){sx=Math.max(0,Math.round(selection.x));sy=Math.max(0,Math.round(selection.y));sw=Math.min(Math.round(selection.w),img.width-sx);sh=Math.min(Math.round(selection.h),img.height-sy);}
+    const scale=Math.min(300/sw,300/sh,1);
+    offCanvas.width=Math.max(1,Math.round(sw*scale));offCanvas.height=Math.max(1,Math.round(sh*scale));
+    offCtx.drawImage(img,sx,sy,sw,sh,0,0,offCanvas.width,offCanvas.height);
+    const data=offCtx.getImageData(0,0,offCanvas.width,offCanvas.height).data;
+    const pixels=[];for(let i=0;i<data.length;i+=4){if(data[i+3]<128)continue;pixels.push([data[i],data[i+1],data[i+2]]);}
+    const sampled=pixels.length>3000?Array.from({length:3000},()=>pixels[Math.floor(Math.random()*pixels.length)]):pixels;
+    const sorted=[...kMeansWithCount(sampled,k)].sort((a,b)=>b.count-a.count);
+    const brandKeys=Object.keys(MATCH_BRANDS);
+    const allMatches=sorted.map(item=>{
+      const m={};for(const[brand,db]of Object.entries(MATCH_BRANDS))m[brand]=findBest(...item.rgb,db);
+      const bestBrand=brandKeys.reduce((a,b)=>m[a].delta<=m[b].delta?a:b);
+      return{item,m,bestBrand};
+    });
+    const crownCount={dmc:0,cosmo:0,olympus:0};
+    for(const{bestBrand}of allMatches)crownCount[bestBrand]++;
+    document.querySelectorAll('.brand-tab').forEach(tab=>{
+      const b=tab.dataset.brand;
+      const labels={dmc:'DMC',cosmo:'COSMO',olympus:'オリムパス'};
+      tab.textContent=labels[b];
+      if(crownCount[b]>0){const c=document.createElement('span');c.textContent=' 👑';c.title=`${crownCount[b]}色でベストマッチ`;tab.appendChild(c);}
+    });
+    for(const brand of brandKeys){
+      const list=document.getElementById('list-'+brand);list.innerHTML='';
+      allMatches.forEach(({item,m,bestBrand},i)=>{const{thread,delta}=m[brand];list.innerHTML+=buildMatchCard(i+1,item.rgb,thread,delta,item.pct,bestBrand===brand,brand);});
+    }
+    document.getElementById('loading').style.display='none';
+    document.getElementById('results-section').style.display='block';
+    document.getElementById('btn-extract').disabled=false;
+  },50);
+});
+
+;
+
+const DMC_OFFICIAL={"01":["#C5C5C5","White Tin"],"02":["#ABABAB","Tin"],"03":["#908F90","Tin Medium"],"04":["#676464","Tin Dark"],"05":["#BBAFA5","Driftwood Light"],"06":["#B4A293","Driftwood Med Light"],"07":["#746256","Driftwood"],"08":["#695B50","Driftwood Dark"],"09":["#483837","Cocoa Vy Dk"],"10":["#CECEB8","Tender Green Vy Lt"],"11":["#E0DC84","Tender Green Lt"],"12":["#CFC662","Tender Green"],"13":["#98C29C","Nile Green Med Lt"],"14":["#CED194","Apple Green Pale"],"15":["#CDD684","Apple Green"],"16":["#B0B56A","Chartreuse Light"],"17":["#D5C551","Yellow Plum Light"],"18":["#D9BF4A","Yellow Plum"],"19":["#CC9C52","Autumn Gold Med Lt"],"20":["#F7D1B3","Shrimp"],"21":["#C0614D","Alizarin Light"],"22":["#922A29","Alizarin"],"23":["#E8DADF","Apple Blossom"],"24":["#E0D9E4","White Lavender"],"25":["#D0CADB","Lavender Ult Lt"],"26":["#BBB0D1","Lavender Pale"],"27":["#D9D4D8","White Violet"],"28":["#8178A0","Eggplant Med Lt"],"29":["#493C5E","Eggplant"],"30":["#8A89B0","Blueberry Med Lt"],"31":["#65629D","Blueberry"],"32":["#565385","Blueberry Dark"],"33":["#884B8E","Fuchsia"],"34":["#7A3070","Fuchsia Dark"],"35":["#58274B","Fuchsia Vy Dk"],"150":["#AB0249","Dusty Rose Ult Vy Dk"],"151":["#F0CED4","Dusty Rose Vry Lt"],"152":["#E2A099","Shell Pink Med Light"],"153":["#E6CCD9","Violet Very Light"],"154":["#572433","Grape Very Dark"],"155":["#9891B6","Blue Violet Med Dark"],"156":["#A3AED1","Blue Violet Med Lt"],"157":["#BBC3D9","Cornflower Blue Vy Lt"],"158":["#4C526E","Cornflower Blu M V D"],"159":["#C7CAD7","Blue Gray Light"],"160":["#999FB7","Blue Gray Medium"],"161":["#7880A4","Blue Gray"],"162":["#DBECF5","Blue Ultra Very Light"],"163":["#4D8361","Celadon Green Md"],"164":["#C8D8B8","Forest Green Lt"],"165":["#EFF4A4","Moss Green Vy Lt"],"166":["#C0C840","Moss Green Md Lt"],"167":["#A77C49","Yellow Beige V Dk"],"168":["#D1D1D1","Pewter Very Light"],"169":["#848484","Pewter Light"],"208":["#835B8B","Lavender Very Dark"],"209":["#A37BA7","Lavender Dark"],"210":["#C39FC3","Lavender Medium"],"211":["#E3CBE3","Lavender Light"],"221":["#883E43","Shell Pink Vy Dk"],"223":["#CC847C","Shell Pink Light"],"224":["#EBB7AF","Shell Pink Very Light"],"225":["#FFDFD5","Shell Pink Ult Vy Lt"],"300":["#6F2F00","Mahogany Vy Dk"],"301":["#B35F2B","Mahogany Med"],"304":["#B71F33","Red Medium"],"307":["#FDED54","Lemon"],"309":["#C12041","Rose Dark"],"310":["#000000","Black"],"311":["#1C5066","Wedgewood Ult VyDk"],"312":["#35668B","Baby Blue Very Dark"],"315":["#814952","Antique Mauve Md Dk"],"316":["#B7737F","Antique Mauve Med"],"317":["#6C6C6C","Pewter Gray"],"318":["#ABABAB","Steel Gray Lt"],"319":["#205F2E","Pistachio Grn Vy Dk"],"320":["#69885A","Pistachio Green Med"],"321":["#C72B3B","Red"],"322":["#5A8FB8","Baby Blue Dark"],"326":["#B33B4B","Rose Very Dark"],"327":["#633666","Violet Dark"],"333":["#5C5478","Blue Violet Very Dark"],"334":["#739FC1","Baby Blue Medium"],"335":["#EE546E","Rose"],"336":["#253B73","Navy Blue"],"340":["#ADA7C7","Blue Violet Medium"],"341":["#B7BFDD","Blue Violet Light"],"347":["#BF2D2D","Salmon Very Dark"],"349":["#D21035","Coral Dark"],"350":["#E04848","Coral Medium"],"351":["#E96A67","Coral"],"352":["#FD9C97","Coral Light"],"353":["#FED7CC","Peach"],"355":["#984436","Terra Cotta Dark"],"356":["#C56A5B","Terra Cotta Med"],"367":["#617A52","Pistachio Green Dk"],"368":["#A6C298","Pistachio Green Lt"],"369":["#D7EDCC","Pistachio Green Vy Lt"],"370":["#B89D64","Mustard Medium"],"371":["#BFA671","Mustard"],"372":["#CCB784","Mustard Lt"],"400":["#8F430F","Mahogany Dark"],"402":["#F7A777","Mahogany Vy Lt"],"407":["#BB8161","Desert Sand Med"],"413":["#565656","Pewter Gray Dark"],"414":["#8C8C8C","Steel Gray Dk"],"415":["#D3D3D6","Pearl Gray"],"420":["#A07042","Hazelnut Brown Dk"],"422":["#C69F7B","Hazelnut Brown Lt"],"433":["#7A451F","Brown Med"],"434":["#985E33","Brown Light"],"435":["#B87748","Brown Very Light"],"436":["#CB9051","Tan"],"437":["#E4BB8E","Tan Light"],"444":["#FFD600","Lemon Dark"],"445":["#FFFB8B","Lemon Light"],"451":["#917B73","Shell Gray Dark"],"452":["#C0B3AE","Shell Gray Med"],"453":["#D7CECB","Shell Gray Light"],"469":["#72843C","Avocado Green"],"470":["#94AB4F","Avocado Grn Lt"],"471":["#AEBF79","Avocado Grn V Lt"],"472":["#D8E498","Avocado Grn U Lt"],"498":["#A7132B","Red Dark"],"500":["#044D33","Blue Green Vy Dk"],"501":["#396F52","Blue Green Dark"],"502":["#5B9071","Blue Green"],"503":["#7BAC94","Blue Green Med"],"504":["#C4DECC","Blue Green Vy Lt"],"505":["#338362","Jade Green"],"517":["#3B768F","Wedgewood Dark"],"518":["#4F93A7","Wedgewood Light"],"519":["#7EB1C8","Sky Blue"],"520":["#666D4F","Fern Green Dark"],"522":["#969E7E","Fern Green"],"523":["#ABB197","Fern Green Lt"],"524":["#C4CDAC","Fern Green Vy Lt"],"535":["#636458","Ash Gray Vy Lt"],"543":["#F2E3CE","Beige Brown Ult Vy Lt"],"550":["#5C184E","Violet Very Dark"],"552":["#803A6B","Violet Medium"],"553":["#A3638B","Violet"],"554":["#DBB3CB","Violet Light"],"561":["#2C6A45","Celadon Green VD"],"562":["#53976A","Jade Medium"],"563":["#8FC098","Jade Light"],"564":["#A7CDAF","Jade Very Light"],"580":["#888D33","Moss Green Dk"],"581":["#A7AE38","Moss Green"],"597":["#5BA3B3","Turquoise"],"598":["#90C3CC","Turquoise Light"],"600":["#CD2F63","Cranberry Very Dark"],"601":["#D1286A","Cranberry Dark"],"602":["#E24874","Cranberry Medium"],"603":["#FFA4BE","Cranberry"],"604":["#FFB0BE","Cranberry Light"],"605":["#FFC0CD","Cranberry Very Light"],"606":["#FA3203","Orange Red Bright"],"608":["#FD5D35","Burnt Orange Bright"],"610":["#796047","Drab Brown Dk"],"611":["#967656","Drab Brown"],"612":["#BC9A78","Drab Brown Lt"],"613":["#DCC4AA","Drab Brown V Lt"],"632":["#875539","Desert Sand Ult Vy Dk"],"640":["#857B61","Beige Gray Vy Dk"],"642":["#A49878","Beige Gray Dark"],"644":["#DDD8CB","Beige Gray Med"],"645":["#6E655C","Beaver Gray Vy Dk"],"646":["#877D73","Beaver Gray Dk"],"647":["#B0A69C","Beaver Gray Med"],"648":["#BCB4AC","Beaver Gray Lt"],"666":["#E31D42","Bright Red"],"676":["#E5CE97","Old Gold Lt"],"677":["#F5ECCB","Old Gold Vy Lt"],"680":["#BC8D0E","Old Gold Dark"],"699":["#056517","Green"],"700":["#07731B","Green Bright"],"701":["#3F8F29","Green Light"],"702":["#47A72F","Kelly Green"],"703":["#7BB547","Chartreuse"],"704":["#9ECF34","Chartreuse Bright"],"712":["#FFFBEF","Cream"],"718":["#9C2462","Plum"],"720":["#E55C1F","Orange Spice Dark"],"721":["#F27842","Orange Spice Med"],"722":["#F7976F","Orange Spice Light"],"725":["#FFC840","Topaz Med Lt"],"726":["#FDD755","Topaz Light"],"727":["#FFF1AF","Topaz Vy Lt"],"728":["#E4B468","Topaz"],"729":["#D0A53E","Old Gold Medium"],"730":["#827B30","Olive Green V Dk"],"731":["#938B37","Olive Green Dk"],"732":["#948C36","Olive Green"],"733":["#BCB34C","Olive Green Md"],"734":["#C7C077","Olive Green Lt"],"738":["#ECCC9E","Tan Very Light"],"739":["#F8E4C8","Tan Ult Vy Lt"],"740":["#FF8B00","Tangerine"],"741":["#FFA32B","Tangerine Med"],"742":["#FFBF57","Tangerine Light"],"743":["#FED376","Yellow Med"],"744":["#FFE793","Yellow Pale"],"745":["#FFE9AD","Yellow Pale Light"],"746":["#FCFCEE","Off White"],"747":["#E5FCFD","Peacock Blue Vy Lt"],"754":["#F7CBBF","Peach Light"],"758":["#EEAA9B","Terra Cotta Vy Lt"],"760":["#F5ADAD","Salmon"],"761":["#FFC9C9","Salmon Light"],"762":["#ECECEC","Pearl Gray Vy Lt"],"772":["#E4ECD4","Yellow Green Vy Lt"],"775":["#D9EBF1","Baby Blue Very Light"],"776":["#FCB0B9","Pink Medium"],"777":["#913546","Raspberry Very Dark"],"778":["#DFB3BB","Antique Mauve Vy Lt"],"779":["#624B45","Cocoa Dark"],"780":["#94631A","Topaz Ultra Vy Dk"],"781":["#A26D20","Topaz Very Dark"],"782":["#AE7720","Topaz Dark"],"783":["#CE9124","Topaz Medium"],"791":["#464563","Cornflower Blue V D"],"792":["#555B7B","Cornflower Blue Dark"],"793":["#707DA2","Cornflower Blue Med"],"794":["#8F9CC1","Cornflower Blue Light"],"796":["#11416D","Royal Blue Dark"],"797":["#13477D","Royal Blue"],"798":["#466A8E","Delft Blue Dark"],"799":["#748EB6","Delft Blue Medium"],"800":["#C0CCDE","Delft Blue Pale"],"801":["#653919","Coffee Brown Dk"],"803":["#2C597C","Baby Blue Ult Vy Dk"],"806":["#3D95A5","Peacock Blue Dark"],"807":["#64ABBA","Peacock Blue"],"809":["#94A8C6","Delft Blue"],"813":["#A1C2D7","Blue Light"],"814":["#7B001B","Garnet Dark"],"815":["#87071F","Garnet Medium"],"816":["#970B23","Garnet"],"817":["#BB051F","Coral Red Very Dark"],"818":["#FFDFD9","Baby Pink"],"819":["#FFEEEB","Baby Pink Light"],"820":["#0E365C","Royal Blue Very Dark"],"822":["#E7E2D3","Beige Gray Light"],"823":["#213063","Navy Blue Dark"],"824":["#396987","Blue Very Dark"],"825":["#4781A5","Blue Dark"],"826":["#6B9EBF","Blue Medium"],"827":["#BDDDIED","Blue Very Light"],"828":["#C5E8ED","Sky Blue Vy Lt"],"829":["#7E6B42","Golden Olive Vy Dk"],"830":["#8D784B","Golden Olive Dk"],"831":["#AA8F56","Golden Olive Md"],"832":["#BD9B51","Golden Olive"],"833":["#C8AB6C","Golden Olive Lt"],"834":["#DBBE7F","Golden Olive Vy Lt"],"838":["#594937","Beige Brown Vy Dk"],"839":["#675541","Beige Brown Dk"],"840":["#9A7C5C","Beige Brown Med"],"841":["#B69B7E","Beige Brown Lt"],"842":["#D1BAA1","Beige Brown Vy Lt"],"844":["#484848","Beaver Gray Ult Dk"],"869":["#835E39","Hazelnut Brown V Dk"],"890":["#174923","Pistachio Grn Ult V D"],"891":["#FF5773","Carnation Dark"],"892":["#FF798C","Carnation Medium"],"893":["#FC90A2","Carnation Light"],"894":["#FFB2BB","Carnation Very Light"],"895":["#1B5300","Hunter Green Vy Dk"],"898":["#492A13","Coffee Brown Vy Dk"],"899":["#F27688","Rose Medium"],"900":["#D15807","Burnt Orange Dark"],"902":["#822637","Garnet Very Dark"],"904":["#557822","Parrot Green V Dk"],"905":["#628A28","Parrot Green Dk"],"906":["#7FB335","Parrot Green Md"],"907":["#C7E666","Parrot Green Lt"],"909":["#156F49","Emerald Green Vy Dk"],"910":["#187E56","Emerald Green Dark"],"911":["#189065","Emerald Green Med"],"912":["#1B9D6B","Emerald Green Lt"],"913":["#6DAB77","Nile Green Med"],"915":["#820043","Plum Dark"],"917":["#9B1359","Plum Medium"],"918":["#82340A","Red Copper Dark"],"919":["#A64510","Red Copper"],"920":["#AC5414","Copper Med"],"921":["#C66218","Copper"],"922":["#E27323","Copper Light"],"924":["#566A6A","Gray Green Vy Dark"],"926":["#98AEAE","Gray Green Med"],"927":["#BDCBCB","Gray Green Light"],"928":["#DDE3E3","Gray Green Vy Lt"],"930":["#455C71","Antique Blue Dark"],"931":["#6A859E","Antique Blue Medium"],"932":["#A2B5C6","Antique Blue Light"],"934":["#313919","Avocado Grn Black"],"935":["#424D21","Avocado Green Dk"],"936":["#4C5826","Avocado Grn V Dk"],"937":["#627133","Avocado Green Md"],"938":["#361F0E","Coffee Brown Ult Dk"],"939":["#1B2853","Navy Blue Very Dark"],"943":["#3D9384","Green Bright Md"],"945":["#FBD5BB","Tawny"],"946":["#EB6307","Burnt Orange Med"],"947":["#FF7B4D","Burnt Orange"],"948":["#FEE7DA","Peach Very Light"],"950":["#EED3C4","Desert Sand Light"],"951":["#FFE2CF","Tawny Light"],"954":["#88BA91","Nile Green"],"955":["#A2D6AD","Nile Green Light"],"956":["#FF9191","Geranium"],"957":["#FDB5B5","Geranium Pale"],"958":["#3EB6A1","Sea Green Dark"],"959":["#59C7B4","Sea Green Med"],"961":["#CF7373","Dusty Rose Dark"],"962":["#E68A8A","Dusty Rose Medium"],"963":["#FFD7D7","Dusty Rose Ult Vy Lt"],"964":["#A9E2D8","Sea Green Light"],"966":["#B9D7C0","Jade Ultra Vy Lt"],"967":["#FFDED5","Apricot Very Light"],"970":["#F78B13","Pumpkin Light"],"971":["#F67F00","Pumpkin"],"972":["#FFB515","Canary Deep"],"973":["#FFE300","Canary Bright"],"975":["#914F12","Golden Brown Dk"],"976":["#C28142","Golden Brown Med"],"977":["#DC9C56","Golden Brown Light"],"986":["#405230","Forest Green Vy Dk"],"987":["#587141","Forest Green Dk"],"988":["#738B5B","Forest Green Med"],"989":["#8DA675","Forest Green"],"991":["#477B6E","Aquamarine Dk"],"992":["#6FAE9F","Aquamarine Lt"],"993":["#90C0B4","Aquamarine Vy Lt"],"995":["#2696B6","Electric Blue Dark"],"996":["#30C2EC","Electric Blue Medium"],"3011":["#898A58","Khaki Green Dk"],"3012":["#A6A75D","Khaki Green Md"],"3013":["#B9B982","Khaki Green Lt"],"3021":["#4F4B41","Brown Gray Vy Dk"],"3022":["#8E9078","Brown Gray Med"],"3023":["#B1AA97","Brown Gray Light"],"3024":["#EBEAE7","Brown Gray Vy Lt"],"3031":["#4B3C2A","Mocha Brown Vy Dk"],"3032":["#B39F8B","Mocha Brown Med"],"3033":["#E3D8CC","Mocha Brown Vy Lt"],"3041":["#956F7C","Antique Violet Medium"],"3042":["#B79DA7","Antique Violet Light"],"3045":["#BC966A","Yellow Beige Dk"],"3046":["#D8BC9A","Yellow Beige Md"],"3047":["#E7D6C1","Yellow Beige Lt"],"3051":["#5F6648","Green Gray Dk"],"3052":["#889268","Green Gray Md"],"3053":["#9CA482","Green Gray"],"3064":["#C48E70","Desert Sand"],"3072":["#E6E8E8","Beaver Gray Vy Lt"],"3078":["#FDF9CD","Golden Yellow Vy Lt"],"3325":["#B8D2E6","Baby Blue Light"],"3326":["#FBADB4","Rose Light"],"3328":["#E36D6D","Salmon Dark"],"3340":["#FF836F","Apricot Med"],"3341":["#FCAB98","Apricot"],"3345":["#1B5915","Hunter Green Dk"],"3346":["#406A3A","Hunter Green"],"3347":["#71935C","Yellow Green Med"],"3348":["#CCD9B1","Yellow Green Lt"],"3350":["#BC4365","Dusty Rose Ultra Dark"],"3354":["#E4A6AC","Dusty Rose Light"],"3362":["#5E6B47","Pine Green Dk"],"3363":["#728256","Pine Green Md"],"3364":["#83975F","Pine Green"],"3371":["#1E1108","Black Brown"],"3607":["#C54989","Plum Light"],"3608":["#EA9CC4","Plum Very Light"],"3609":["#F4AED5","Plum Ultra Light"],"3685":["#881531","Mauve Very Dark"],"3687":["#C96B70","Mauve"],"3688":["#E7A9AC","Mauve Medium"],"3689":["#FBBFC2","Mauve Light"],"3705":["#FF7992","Melon Dark"],"3706":["#FFADBC","Melon Medium"],"3708":["#FFCBD5","Melon Light"],"3712":["#F18787","Salmon Medium"],"3713":["#FFE2E2","Salmon Very Light"],"3716":["#FFBDBD","Dusty Rose Med Vy Lt"],"3721":["#A14B51","Shell Pink Dark"],"3722":["#BC6C64","Shell Pink Med"],"3726":["#9B5B66","Antique Mauve Dark"],"3727":["#DBA9B2","Antique Mauve Light"],"3731":["#DA6783","Dusty Rose Very Dark"],"3733":["#E8879B","Dusty Rose"],"3740":["#785762","Antique Violet Dark"],"3743":["#D7CBD3","Antique Violet Vy Lt"],"3746":["#776B98","Blue Violet Dark"],"3747":["#D3D7ED","Blue Violet Vy Lt"],"3750":["#384C5E","Antique Blue Very Dk"],"3752":["#C7D1DB","Antique Blue Very Lt"],"3753":["#DBE2E9","Antique Blue Ult Vy Lt"],"3755":["#93B4CE","Baby Blue"],"3756":["#EEFCFC","Baby Blue Ult Vy Lt"],"3760":["#3E85A2","Wedgewood Med"],"3761":["#ACD8E2","Sky Blue Light"],"3765":["#347F8C","Peacock Blue Vy Dk"],"3766":["#99CFD9","Peacock Blue Light"],"3768":["#657F7F","Gray Green Dark"],"3770":["#FFEEE3","Tawny Vy Light"],"3771":["#F4BBA9","Terra Cotta Ult Vy Lt"],"3772":["#A06C50","Desert Sand Vy Dk"],"3773":["#B67552","Desert Sand Dark"],"3774":["#F3E1D7","Desert Sand Vy Lt"],"3776":["#CF7939","Mahogany Light"],"3777":["#863022","Terra Cotta Vy Dk"],"3778":["#D98978","Terra Cotta Light"],"3779":["#F8CAC8","Rosewood Ult Vy Lt"],"3781":["#6B5743","Mocha Brown Dk"],"3782":["#D2BCA6","Mocha Brown Lt"],"3787":["#625D50","Brown Gray Dark"],"3790":["#7F6A55","Beige Gray Ult Dk"],"3799":["#424242","Pewter Gray Vy Dk"],"3801":["#E74967","Melon Very Dark"],"3802":["#714149","Antique Mauve Vy Dk"],"3803":["#AB3357","Mauve Dark"],"3804":["#E02876","Cyclamen Pink Dark"],"3805":["#F3478B","Cyclamen Pink"],"3806":["#FF8CAE","Cyclamen Pink Light"],"3807":["#60678C","Cornflower Blue"],"3808":["#366970","Turquoise Ult Vy Dk"],"3809":["#3F7C85","Turquoise Vy Dark"],"3810":["#488E9A","Turquoise Dark"],"3811":["#BCE3E6","Turquoise Very Light"],"3812":["#2F8C84","Sea Green Vy Dk"],"3813":["#B2D4BD","Blue Green Lt"],"3814":["#508B7D","Aquamarine"],"3815":["#477759","Celadon Green Dk"],"3816":["#65A57D","Celadon Green"],"3817":["#99C3AA","Celadon Green Lt"],"3818":["#115A3B","Emerald Grn Ult V Dk"],"3819":["#E0E868","Moss Green Lt"],"3820":["#DFB65F","Straw Dark"],"3821":["#F3CE75","Straw"],"3822":["#F6DC98","Straw Light"],"3823":["#FFFDE3","Yellow Ultra Pale"],"3824":["#FECDC2","Apricot Light"],"3825":["#FDBD96","Pumpkin Pale"],"3826":["#AD7239","Golden Brown"],"3827":["#F7BB77","Golden Brown Pale"],"3828":["#B78B61","Hazelnut Brown"],"3829":["#A98204","Old Gold Vy Dark"],"3830":["#B95544","Terra Cotta"],"3831":["#B32F48","Raspberry Dark"],"3832":["#DB556E","Raspberry Medium"],"3833":["#EA8699","Raspberry Light"],"3834":["#72375D","Grape Dark"],"3835":["#946083","Grape Medium"],"3836":["#BA91AA","Grape Light"],"3837":["#6C3A6E","Lavender Ultra Dark"],"3838":["#5C7294","Lavender Blue Dark"],"3839":["#7B8EAB","Lavender Blue Med"],"3840":["#B0C0DA","Lavender Blue Light"],"3841":["#CDDFED","Baby Blue Pale"],"3842":["#32667C","Wedgewood Vry Dk"],"3843":["#14AAD0","Electric Blue"],"3844":["#12AEBA","Turquoise Bright Dark"],"3845":["#04C4CA","Turquoise Bright Med"],"3846":["#06E3E6","Turquoise Bright Light"],"3847":["#347D75","Teal Green Dark"],"3848":["#559392","Teal Green Med"],"3849":["#52B3A4","Teal Green Light"],"3850":["#378477","Green Bright Dk"],"3851":["#49B3A1","Green Bright Lt"],"3852":["#CD9D37","Straw Very Dark"],"3853":["#F29746","Autumn Gold Dk"],"3854":["#F2AF68","Autumn Gold Med"],"3855":["#FAD396","Autumn Gold Lt"],"3856":["#FFD3B5","Mahogany Ult Vy Lt"],"3857":["#68251A","Rosewood Dark"],"3858":["#964A3F","Rosewood Med"],"3859":["#BA8B7C","Rosewood Light"],"3860":["#7D5D57","Cocoa"],"3861":["#A68881","Cocoa Light"],"3862":["#8A6E4E","Mocha Beige Dark"],"3863":["#A4835C","Mocha Beige Med"],"3864":["#CBB69C","Mocha Beige Light"],"3865":["#F9F7F1","Winter White"],"3866":["#FAF6F0","Mocha Brn Ult Vy Lt"],"B5200":["#FFFFFF","Snow White"],"ECRU":["#F0EADA","Ecru"],"WHITE":["#FCFBF8","White"],"BLANC":["#FCFBF8","Blanc"]};
+// ── 在庫データ ──
+let inventory = [];
+let editingId = null;
+let confirmDeleteId = null;
+
+function saveInventory() {
+  localStorage.setItem('emb-inventory', JSON.stringify(inventory));
+}
+function loadInventory() {
+  try { inventory = JSON.parse(localStorage.getItem('emb-inventory') || '[]'); } catch { inventory = []; }
+}
+loadInventory();
+function isLow(t) {
+  if (t.remainingUnit === 'meters') return t.skeinCount === 0 && Number(t.remainingMeters) <= 1;
+  return t.skeinCount === 0 && t.remaining <= 25;
+}
+// 並び替え用に「%換算の残量」を返す(1かせ=8mと仮定)
+function remainPercentEquivalent(t) {
+  if (t.remainingUnit === 'meters') return Math.max(0, Math.min(100, (Number(t.remainingMeters) || 0) / 8 * 100));
+  return t.remaining;
+}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+// ── 在庫一覧レンダリング ──
+function renderInventory() {
+  const query = document.getElementById('inv-query').value.trim().toLowerCase();
+  const brandFilter = document.getElementById('inv-brand-filter').value;
+  const sortKey = document.getElementById('inv-sort').value;
+  const brands = [...new Set(inventory.map(t => t.brand))].sort();
+  const sel = document.getElementById('inv-brand-filter');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="すべて">すべてのブランド</option>';
+  brands.forEach(b => { const o = document.createElement('option'); o.value = b; o.textContent = b; sel.appendChild(o); });
+  if (brands.includes(cur)) sel.value = cur;
+  let list = inventory.filter(t => {
+    if (brandFilter !== 'すべて' && t.brand !== brandFilter) return false;
+    if (!query) return true;
+    return [t.colorNumber, t.colorName, t.brand, t.project || '', t.notes || ''].some(s => s.toLowerCase().includes(query));
+  });
+  if (sortKey === 'brand') list = [...list].sort((a, b) => a.brand.localeCompare(b.brand) || a.colorNumber.localeCompare(b.colorNumber, 'ja', { numeric: true }));
+  else if (sortKey === 'low') list = [...list].sort((a, b) => { const av = a.skeinCount > 0 ? 1000 + remainPercentEquivalent(a) : remainPercentEquivalent(a); const bv = b.skeinCount > 0 ? 1000 + remainPercentEquivalent(b) : remainPercentEquivalent(b); return av - bv; });
+  else if (sortKey === 'recent') list = [...list].sort((a, b) => b.createdAt - a.createdAt);
+  const total = inventory.length;
+  const low = inventory.filter(isLow).length;
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-low').textContent = low;
+  document.getElementById('stat-low-box').style.display = low > 0 ? 'flex' : 'none';
+  const wrap = document.getElementById('inv-list-wrap');
+  if (list.length === 0) {
+    wrap.innerHTML = `<div class="inv-empty">${total === 0 ? '<div style="font-size:2rem">🧵</div><h3>まだ糸が登録されていません</h3><p>お手持ちの刺繍糸を登録して管理しましょう。</p><button class="inv-btn inv-btn-solid" onclick="openModal()">＋ 最初の糸を追加する</button>' : '<h3>該当する糸が見つかりません</h3><p>検索条件を変えてみてください。</p>'}</div>`;
+    return;
+  }
+  wrap.innerHTML = `<div class="inv-grid">${list.map(t => {
+    const low = isLow(t);
+    return `<div class="inv-card">
+      <div class="inv-card-swatch" style="background:${t.hex}"></div>
+      <div class="inv-card-info">
+        <div class="inv-card-top"><span class="inv-brand-tag">${t.brand}</span><span class="inv-code">${t.colorNumber}</span></div>
+        ${t.colorName ? `<div class="inv-color-name">${t.colorName}</div>` : ''}
+        <div class="inv-qty-row">
+          <span class="inv-pill ${t.skeinCount > 0 ? '' : 'inv-pill-low'}">${t.skeinCount > 0 ? `未開封 ${t.skeinCount}本` : '未開封なし'}</span>
+          <span class="inv-pill">使用中 ${t.remainingUnit === 'meters' ? `${t.remainingMeters}m` : `${t.remaining}%`}</span>
+          ${low ? '<span class="inv-pill inv-pill-low">⚠️ 残り少ない</span>' : ''}
+        </div>
+        ${t.project ? `<div class="inv-project">📌 ${t.project}</div>` : ''}
+        ${t.notes ? `<div class="inv-notes">${t.notes}</div>` : ''}
+      </div>
+      <div class="inv-card-actions">
+        <button class="inv-icon-btn" onclick="openModal('${t.id}')" title="編集">✏️</button>
+        <button class="inv-icon-btn danger" onclick="openConfirmDelete('${t.id}')" title="削除">🗑️</button>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// ── モーダル ──
+function openModal(id) {
+  editingId = id || null;
+  document.getElementById('modal-error').style.display = 'none';
+  const t = id ? inventory.find(x => x.id === id) : null;
+  document.getElementById('modal-title').textContent = t ? '糸を編集' : '糸を追加';
+  document.getElementById('modal-brand').value = t?.brand || 'DMC';
+  document.getElementById('modal-num').value = t?.colorNumber || '';
+  document.getElementById('modal-name').value = t?.colorName || '';
+  document.getElementById('modal-hex').value = t?.hex || '#B5483D';
+  document.getElementById('modal-color-picker').value = t?.hex || '#B5483D';
+  document.getElementById('modal-skeins').value = t?.skeinCount ?? 1;
+  const unit = t?.remainingUnit === 'meters' ? 'meters' : 'percent';
+  document.getElementById('modal-remaining-unit').value = unit;
+  document.getElementById('modal-remaining').value = t?.remaining ?? 100;
+  document.getElementById('modal-remaining-label').textContent = t?.remaining ?? 100;
+  document.getElementById('modal-remaining-meters').value = t?.remainingMeters ?? 8;
+  document.getElementById('modal-remaining-percent-wrap').style.display = unit === 'percent' ? 'block' : 'none';
+  document.getElementById('modal-remaining-meters-wrap').style.display = unit === 'meters' ? 'block' : 'none';
+  document.getElementById('modal-project').value = t?.project || '';
+  document.getElementById('modal-notes').value = t?.notes || '';
+  updateModalPreview();
+  handleBrandChange();
+  document.getElementById('inv-modal').style.display = 'flex';
+  setTimeout(() => {
+    document.getElementById('modal-num').focus();
+  }, 50);
+}
+function closeModal() { document.getElementById('inv-modal').style.display = 'none'; editingId = null; }
+function updateModalPreview() {
+  const brand = document.getElementById('modal-brand').value;
+  const num = document.getElementById('modal-num').value || '—';
+  const name = document.getElementById('modal-name').value || '色名未設定';
+  const hex = document.getElementById('modal-hex').value;
+  document.getElementById('modal-preview-num').textContent = `${brand} ${num}`;
+  document.getElementById('modal-preview-name').textContent = name;
+  document.getElementById('modal-swatch').style.background = hex;
+}
+function handleBrandChange() {
+  const brand = document.getElementById('modal-brand').value;
+  document.getElementById('custom-brand-field').style.display = brand === 'その他' ? 'flex' : 'none';
+  const showHint = ['DMC','コスモ','オリムパス'].includes(brand);
+  document.getElementById('dmc-hint').style.display = showHint ? 'block' : 'none';
+  document.getElementById('dmc-hint').textContent = showHint
+    ? `${brand}の番号を入力すると、色見本が自動で設定されます。`
+    : '';
+}
+document.getElementById('modal-brand').addEventListener('change', () => { handleBrandChange(); checkDmcAuto(); updateModalPreview(); });
+document.getElementById('modal-num').addEventListener('input', () => { checkDmcAuto(); updateModalPreview(); });
+document.getElementById('modal-name').addEventListener('input', updateModalPreview);
+document.getElementById('modal-hex').addEventListener('input', e => { document.getElementById('modal-color-picker').value = e.target.value; updateModalPreview(); });
+document.getElementById('modal-color-picker').addEventListener('input', e => { document.getElementById('modal-hex').value = e.target.value; updateModalPreview(); });
+document.getElementById('modal-remaining').addEventListener('input', e => { document.getElementById('modal-remaining-label').textContent = e.target.value; });
+document.getElementById('modal-remaining-unit').addEventListener('change', e => {
+  const isMeters = e.target.value === 'meters';
+  document.getElementById('modal-remaining-percent-wrap').style.display = isMeters ? 'none' : 'block';
+  document.getElementById('modal-remaining-meters-wrap').style.display = isMeters ? 'block' : 'none';
+});
+document.getElementById('modal-close').addEventListener('click', closeModal);
+document.getElementById('modal-cancel').addEventListener('click', closeModal);
+document.getElementById('inv-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+
+function checkDmcAuto() {
+  const brand = document.getElementById('modal-brand').value;
+  const tag = document.getElementById('match-tag');
+  const num = document.getElementById('modal-num').value.trim();
+  if (!num) { tag.style.display = 'none'; return; }
+
+  let match = null;
+  if (brand === 'DMC') {
+    const m = DMC_OFFICIAL[num.toUpperCase()];
+    if (m) match = { hex: m[0], name: m[1] };
+  } else if (brand === 'コスモ') {
+    const m = COSMO.find(d => d.n === num);
+    if (m) match = { hex: m.h, name: m.name };
+  } else if (brand === 'オリムパス') {
+    const m = OLYMPUS.find(d => d.n === num);
+    if (m) match = { hex: m.h, name: m.name };
+  } else {
+    tag.style.display = 'none'; return;
   }
 
-  // ---------- image loading ----------
-  pickBtn.addEventListener('click', () => fileInput.click());
+  if (match) {
+    document.getElementById('modal-hex').value = match.hex;
+    document.getElementById('modal-color-picker').value = match.hex;
+    if (match.name) document.getElementById('modal-name').value = match.name;
+    tag.textContent = '✓ 公式カラーを自動設定'; tag.className = 'match-tag match-ok'; tag.style.display = 'inline';
+    updateModalPreview();
+  } else {
+    tag.textContent = 'この番号は見つかりません'; tag.className = 'match-tag match-warn'; tag.style.display = 'inline';
+  }
+}
 
-  fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if(!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      img.onload = () => {
-        state.naturalW = img.naturalWidth;
-        state.naturalH = img.naturalHeight;
-        state.scale = Math.min(
-          (stage.clientWidth * 0.85) / state.naturalW,
-          (stage.clientHeight * 0.85) / state.naturalH,
-          1
-        );
-        state.x = 0; state.y = 0;
-        img.style.display = 'block';
-        emptyState.style.display = 'none';
-        applyTransform();
-      };
-      img.src = ev.target.result;
-    };
-    reader.readAsDataURL(file);
-  });
+document.getElementById('modal-save').addEventListener('click', () => {
+  const errEl = document.getElementById('modal-error');
+  errEl.style.display = 'none';
 
-  // ---------- drag (1本指で移動) / pinch (2本指で大きさ調整) ----------
-  const activePointers = new Map();
-  let dragging = false;
-  let startPX = 0, startPY = 0, startX = 0, startY = 0;
-  let pinchStartDist = 0, pinchStartScale = 1;
+  const num = document.getElementById('modal-num').value.trim();
+  if (!num) return;
+  let brand = document.getElementById('modal-brand').value;
+  if (brand === 'その他') { const cb = document.getElementById('modal-custom-brand').value.trim(); if (cb) brand = cb; }
 
-  function minScale(){ return MIN_SCALE; }
-  function maxScale(){ return MAX_SCALE; }
-
-  function distanceBetween(p1, p2){
-    return Math.hypot(p1.x - p2.x, p1.y - p2.y);
+  // 重複チェック（同じブランド・同じ色番号、編集中の自分自身は除外）
+  const isDuplicate = inventory.some(x =>
+    x.id !== editingId &&
+    x.brand === brand &&
+    x.colorNumber.trim().toLowerCase() === num.toLowerCase()
+  );
+  if (isDuplicate) {
+    errEl.textContent = `⚠️ ${brand} ${num} はすでに登録されています。`;
+    errEl.style.display = 'block';
+    errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    return;
   }
 
-  stage.addEventListener('pointerdown', (e) => {
-    if(state.locked || img.style.display === 'none') return;
-    stage.setPointerCapture(e.pointerId);
-    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const remainingUnit = document.getElementById('modal-remaining-unit').value === 'meters' ? 'meters' : 'percent';
+  const remainingMeters = Math.max(0, Number(document.getElementById('modal-remaining-meters').value) || 0);
+  const remainingPercentInput = Math.max(0, Math.min(100, Number(document.getElementById('modal-remaining').value)));
+  const t = {
+    id: editingId || uid(),
+    brand,
+    colorNumber: num,
+    colorName: document.getElementById('modal-name').value.trim(),
+    hex: document.getElementById('modal-hex').value,
+    skeinCount: Math.max(0, Number(document.getElementById('modal-skeins').value) || 0),
+    remainingUnit,
+    remaining: remainingUnit === 'meters' ? Math.max(0, Math.min(100, remainingMeters / 8 * 100)) : remainingPercentInput,
+    remainingMeters,
+    project: document.getElementById('modal-project').value.trim(),
+    notes: document.getElementById('modal-notes').value.trim(),
+    createdAt: editingId ? (inventory.find(x => x.id === editingId)?.createdAt || Date.now()) : Date.now(),
+  };
+  if (editingId) { inventory = inventory.map(x => x.id === editingId ? t : x); }
+  else { inventory = [t, ...inventory]; }
+  saveInventory(); closeModal(); renderInventory();
+  const si = document.getElementById('save-indicator'); si.style.display = 'block'; setTimeout(() => si.style.display = 'none', 1200);
+});
 
-    if(activePointers.size === 1){
-      dragging = true;
-      startPX = e.clientX; startPY = e.clientY;
-      startX = state.x; startY = state.y;
-    } else if(activePointers.size === 2){
-      dragging = false;
-      const pts = Array.from(activePointers.values());
-      pinchStartDist = distanceBetween(pts[0], pts[1]);
-      pinchStartScale = state.scale;
-    }
+function openConfirmDelete(id) { confirmDeleteId = id; document.getElementById('confirm-modal').style.display = 'flex'; }
+document.getElementById('confirm-cancel').addEventListener('click', () => { document.getElementById('confirm-modal').style.display = 'none'; confirmDeleteId = null; });
+document.getElementById('confirm-ok').addEventListener('click', () => { if (confirmDeleteId) { inventory = inventory.filter(x => x.id !== confirmDeleteId); saveInventory(); renderInventory(); } document.getElementById('confirm-modal').style.display = 'none'; confirmDeleteId = null; });
+
+// ══════════════════════════════════════════════
+//  重複チェック(同じブランド×色番号)
+// ══════════════════════════════════════════════
+function checkDuplicates() {
+  const groups = {};
+  inventory.forEach(t => {
+    const brand = (t.brand || '').trim();
+    const num = (t.colorNumber || '').trim();
+    if (!brand || !num) return;
+    const key = brand.toLowerCase() + '||' + num.toLowerCase();
+    if (!groups[key]) groups[key] = { brand, num, items: [] };
+    groups[key].items.push(t);
   });
-
-  stage.addEventListener('pointermove', (e) => {
-    if(!activePointers.has(e.pointerId)) return;
-    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
-    if(activePointers.size === 2){
-      const pts = Array.from(activePointers.values());
-      const dist = distanceBetween(pts[0], pts[1]);
-      if(pinchStartDist > 0){
-        let next = pinchStartScale * (dist / pinchStartDist);
-        next = Math.max(minScale(), Math.min(maxScale(), next));
-        state.scale = next;
-        applyTransform();
-      }
-    } else if(activePointers.size === 1 && dragging){
-      state.x = startX + (e.clientX - startPX);
-      state.y = startY + (e.clientY - startPY);
-      applyTransform();
-    }
-  });
-
-  function releasePointer(e){
-    activePointers.delete(e.pointerId);
-    if(activePointers.size === 1){
-      const remaining = Array.from(activePointers.entries())[0];
-      dragging = true;
-      startPX = remaining[1].x; startPY = remaining[1].y;
-      startX = state.x; startY = state.y;
-    } else {
-      dragging = false;
-    }
+  const dups = Object.values(groups).filter(g => g.items.length > 1);
+  const body = document.getElementById('dup-modal-body');
+  if (dups.length === 0) {
+    body.innerHTML = '重複している糸は見つかりませんでした。';
+  } else {
+    const lines = dups.map(g => `${g.brand} ${g.num}（${g.items.length}件）`);
+    body.innerHTML = `重複が${dups.length}件見つかりました。<br><br>` + lines.join('<br>');
   }
+  document.getElementById('dup-modal').style.display = 'flex';
+}
+document.getElementById('inv-dup-btn').addEventListener('click', checkDuplicates);
+document.getElementById('dup-modal-close').addEventListener('click', () => { document.getElementById('dup-modal').style.display = 'none'; });
+document.getElementById('confirm-modal').addEventListener('click', e => { if (e.target === e.currentTarget) { document.getElementById('confirm-modal').style.display = 'none'; confirmDeleteId = null; } });
 
-  stage.addEventListener('pointerup', releasePointer);
-  stage.addEventListener('pointercancel', releasePointer);
+document.getElementById('inv-add-btn').addEventListener('click', () => openModal());
 
-  // ---------- pin / lock ----------
-  pinBtn.addEventListener('click', () => {
-    state.locked = !state.locked;
-    document.body.classList.toggle('locked', state.locked);
-  });
+// ── エクスポート（Safari対応）──
+document.getElementById('inv-export-btn').addEventListener('click', () => {
+  const json = JSON.stringify(inventory, null, 2);
+  const date = new Date().toISOString().slice(0, 10);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `糸箱_${date}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
 
-})();
+// ── インポート ──
+document.getElementById('inv-import-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!Array.isArray(data)) throw new Error();
+      const existingIds = new Set(inventory.map(t => t.id));
+      const newItems = data.filter(t => !existingIds.has(t.id));
+      data.filter(t => existingIds.has(t.id)).forEach(t => {
+        const idx = inventory.findIndex(x => x.id === t.id);
+        if (idx !== -1) inventory[idx] = t;
+      });
+      inventory = [...inventory, ...newItems];
+      saveInventory();
+      renderInventory();
+      const si = document.getElementById('save-indicator');
+      si.textContent = `✅ ${data.length}件インポートしました`;
+      si.style.display = 'block';
+      setTimeout(() => { si.style.display = 'none'; si.textContent = '保存中…'; }, 2500);
+    } catch {
+      alert('インポートに失敗しました。正しいJSONファイルか確認してください。');
+    }
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+});
+document.getElementById('inv-query').addEventListener('input', renderInventory);
+document.getElementById('inv-brand-filter').addEventListener('change', renderInventory);
+document.getElementById('inv-sort').addEventListener('change', renderInventory);
+
+// 初期表示
+renderInventory();
 </script>
 </body>
 </html>
