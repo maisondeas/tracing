@@ -17,7 +17,13 @@
     --text-dim:#5f7488;
     --mono: 'SF Mono', 'Courier New', monospace;
   }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  *{
+    box-sizing:border-box;
+    -webkit-tap-highlight-color:transparent;
+    -webkit-touch-callout:none;
+    -webkit-user-select:none;
+    user-select:none;
+  }
   html,body{
     margin:0; padding:0; width:100%; height:100%;
     background:var(--bg);
@@ -446,9 +452,41 @@
   stage.addEventListener('pointercancel', releasePointer);
 
   // ---------- pin / lock ----------
+  let wakeLock = null;
+
+  async function requestWakeLock(){
+    if(!('wakeLock' in navigator)) return;
+    try{
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    }catch(err){
+      wakeLock = null;
+    }
+  }
+
+  async function releaseWakeLock(){
+    if(wakeLock){
+      try{ await wakeLock.release(); }catch(err){}
+      wakeLock = null;
+    }
+  }
+
+  // Wake Lockはタブが非表示になると自動解除されるため、
+  // 固定中に画面へ復帰したタイミングで再取得する
+  document.addEventListener('visibilitychange', () => {
+    if(state.locked && document.visibilityState === 'visible' && !wakeLock){
+      requestWakeLock();
+    }
+  });
+
   pinBtn.addEventListener('click', () => {
     state.locked = !state.locked;
     document.body.classList.toggle('locked', state.locked);
+    if(state.locked){
+      requestWakeLock();
+    }else{
+      releaseWakeLock();
+    }
   });
 
 })();
